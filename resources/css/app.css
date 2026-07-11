@@ -1,0 +1,7 @@
+@import 'flatpickr/dist/flatpickr.min.css';
+@import '@mdi/font/css/materialdesignicons.css';
+@import './animation.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

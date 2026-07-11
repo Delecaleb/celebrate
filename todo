@@ -1,0 +1,8 @@
+Let update the top bar.
+
+if user is celebrant, show edit icon to customise the celebration page. The settings should show on the side like it is in google form. There user should be able to select template. 
+
+create a template module with the templates setting stored in db. template will basically affects background color, text color, border of celebrant photo, arragement of wishes if possible, and other things that fits into template
+
+
+8033116747

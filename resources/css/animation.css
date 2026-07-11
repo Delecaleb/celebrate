@@ -1,0 +1,25 @@
+@keyframes pump {
+    0%, 100% {
+        transform: scale(1);
+    }
+
+    25% {
+        transform: scale(1.15);
+    }
+
+    50% {
+        transform: scale(0.95);
+    }
+
+    75% {
+        transform: scale(1.12);
+    }
+}
+
+.pumpFs {
+    animation: pump 1.2s infinite;
+}
+
+.pumpSs {
+    animation: pump 5s infinite;
+}
