@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mobile Deep Link Scheme
+    |--------------------------------------------------------------------------
+    |
+    | The URL scheme of the React Native app in celebrateMobile/. Must match the
+    | "scheme" in that project's app.json, because PaymentBridgeController
+    | redirects payment gateways back into the app with it.
+    |
+    */
+
+    'mobile_scheme' => env('MOBILE_SCHEME', 'celebratemi'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

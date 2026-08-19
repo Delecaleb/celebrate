@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MainController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CelebrationController;
 use App\Http\Controllers\GiftController;
 use App\Http\Controllers\TemplateController;
@@ -12,72 +13,43 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminLoginController;
 use App\Http\Controllers\WalletFundingController;
 
-Route::get('/', [MainController::class, 'home'])->name('home');
+/*
+| Public marketing site. These share one shell (layouts.marketing) and are
+| navigated client-side by resources/js/modules/pageRouter.js.
+*/
+Route::get('/',             [MainController::class, 'home'])->name('home');
+Route::get('/features',     [MainController::class, 'features'])->name('features');
+Route::get('/how-it-works', [MainController::class, 'howItWorks'])->name('how-it-works');
+Route::get('/pricing',      [MainController::class, 'pricing'])->name('pricing');
+Route::get('/stories',      [MainController::class, 'stories'])->name('stories');
+
 Route::post('/create-celebration', [CelebrationController::class, 'store'])->name('celebrations.store');
-Route::get('/celebration/{slug}', [CelebrationController::class, 'show'])->name('celebrations.show');    
-Route::get('/dashboard', function () {
-    $user = auth()->user();
+Route::get('/celebration/{slug}', [CelebrationController::class, 'show'])->name('celebrations.show');
 
-    // My events
-    $celebrations = $user->celebrations()->withCount('gifts')->latest()->get();
+/*
+| Hands a payment gateway's redirect back to the mobile app. Paystack and Stripe
+| both refuse to redirect to a custom scheme, so they are pointed here and this
+| 302s to celebratemi://. Verifies nothing — see PaymentBridgeController.
+*/
+Route::get('/payments/bridge', \App\Http\Controllers\PaymentBridgeController::class)
+    ->name('payments.bridge');
+/*
+| Signed-in dashboard. Every rail menu item is its own URL; they share one shell
+| (layouts.dashboard) and are navigated client-side by the same pageRouter.js
+| the marketing site uses.
+*/
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/dashboard',             [DashboardController::class, 'events'])->name('dashboard');
+    Route::get('/dashboard/upcoming',    [DashboardController::class, 'upcoming'])->name('dashboard.upcoming');
+    Route::get('/dashboard/activity',    [DashboardController::class, 'activity'])->name('dashboard.activity');
+    Route::get('/dashboard/wallet',      [DashboardController::class, 'wallet'])->name('dashboard.wallet');
+    Route::get('/dashboard/bank',        [DashboardController::class, 'bank'])->name('dashboard.bank');
+    Route::get('/dashboard/discover',    [DashboardController::class, 'discover'])->name('dashboard.discover');
 
-    // Upcoming (published + future date)
-    $upcoming = $user->celebrations()
-        ->where('status', 'published')
-        ->where(function ($q) {
-            $q->whereDate('event_date', '>=', now()->toDateString())
-              ->orWhereDate('start_date', '>=', now()->toDateString());
-        })
-        ->orderByRaw('COALESCE(event_date, start_date) ASC')
-        ->limit(10)
-        ->get();
-
-    // Notifications
-    $notifications = $user->notifications()->latest()->limit(40)->get();
-    $unreadCount   = $user->notifications()->where('is_read', false)->count();
-
-    // Wallet
-    $walletTransactions = $user->walletTransactions()->latest()->limit(50)->get();
-    $totalCredited = $walletTransactions->where('type', 'credit')->where('status', 'completed')->sum('amount');
-    $totalDebited  = $walletTransactions->where('type', 'debit')->where('status', 'completed')->sum('amount');
-
-    // Discover — public celebrations from other users
-    $discover = \App\Models\Celebration::where('is_public', true)
-        ->where('user_id', '!=', $user->id)
-        ->where('status', 'published')
-        ->latest()
-        ->limit(12)
-        ->get();
-
-    // Bank accounts & withdrawals
-    $bankAccounts = $user->bankAccounts()->orderByDesc('is_default')->oldest()->get();
-    $withdrawals  = $user->withdrawals()->with('bankAccount')->latest()->limit(30)->get();
-
-    // Wallet display in user's local currency
-    $currencySvc      = app(\App\Services\PaymentSystem\CurrencyService::class);
-    $walletSvc        = app(\App\Services\PaymentSystem\WalletService::class);
-    $userCurrency     = $currencySvc->forUser($user);
-    $currencySymbol   = config("currency.currencies.{$userCurrency}.symbol", $userCurrency);
-    $walletDisplay    = $walletSvc->balance($user, $userCurrency);
-
-    $hour     = now()->hour;
-    $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
-
-    $stats = [
-        'total'     => $celebrations->count(),
-        'views'     => $celebrations->sum('view_count'),
-        'messages'  => $celebrations->sum('comment_count'),
-        'published' => $celebrations->where('status', 'published')->count(),
-    ];
-
-    return view('dashboard', compact(
-        'celebrations', 'upcoming', 'notifications', 'unreadCount',
-        'walletTransactions', 'totalCredited', 'totalDebited',
-        'discover', 'greeting', 'stats',
-        'bankAccounts', 'withdrawals',
-        'userCurrency', 'currencySymbol', 'walletDisplay'
-    ));
-})->middleware(['auth', 'verified'])->name('dashboard');
+    // Clears the unread badge in the rail. A plain POST, so the shell (which
+    // renders the badge outside #view) is rebuilt by the redirect.
+    Route::post('/dashboard/activity/read', [DashboardController::class, 'markActivityRead'])->name('dashboard.activity.read');
+});
 Route::middleware(['auth'])->group(function () {
     Route::get('/bulk-upload-celebrants/form',    [\App\Http\Controllers\CelebrantController::class, 'showBulkUploadForm'])->name('celebrant.bulkUploadForm');
     Route::post('/bulk-upload-celebrants/preview', [\App\Http\Controllers\CelebrantController::class, 'previewBulkUpload'])->name('celebrant.bulkUpload.preview');
@@ -87,10 +59,15 @@ Route::middleware(['auth'])->group(function () {
 // celebrant routes
 Route::prefix('celebrant')->group(function () {
     Route::post('/create-wishes', [CelebrationController::class, 'createWishes'])->name('celebrant.create-wishes');
-    Route::get('/{slug}/edit', [CelebrationController::class, 'edit'])->name('celebrant.edit');
+    Route::delete('/wishes/{wish}', [CelebrationController::class, 'destroyWish'])->name('celebrant.wish.destroy');
+    // No separate edit screen — page details live in the Settings tab on the
+    // celebration page itself, saved through celebrant.update below.
     Route::put('/{slug}', [CelebrationController::class, 'update'])->name('celebrant.update');
     Route::delete('/{slug}', [CelebrationController::class, 'destroy'])->name('celebrant.destroy');
     Route::post('/{id}/cover-photo', [CelebrationController::class, 'updateCoverPhoto'])->name('celebrant.update-cover');
+    Route::post('/{id}/frame', [CelebrationController::class, 'updateFrame'])->name('celebrant.update-frame');
+    Route::post('/{id}/slug',  [CelebrationController::class, 'updateSlug'])->name('celebrant.update-slug');
+    Route::get('/{id}/slug/check', [CelebrationController::class, 'checkSlug'])->name('celebrant.check-slug');
 });
 
 //comment routes
@@ -111,6 +88,7 @@ Route::prefix('gift')->group(function () {
     Route::post('/send', [GiftController::class, 'send'])->name('gift.send');
     Route::post('/payment/initiate', [GiftController::class, 'initiatePayment'])->name('gift.payment.initiate');
     Route::get('/payment/callback', [GiftController::class, 'paystackCallback'])->name('gift.payment.callback');
+    Route::get('/stripe/success', [GiftController::class, 'stripeSuccess'])->name('gift.stripe.success');
 });
 
 // wish contribution routes
@@ -118,6 +96,7 @@ Route::prefix('wish')->group(function () {
     Route::post('/{wish}/contribute/wallet', [\App\Http\Controllers\WishContributionController::class, 'contributeFromWallet'])->name('wish.contribute.wallet');
     Route::post('/{wish}/contribute/pay',    [\App\Http\Controllers\WishContributionController::class, 'initiatePayment'])->name('wish.contribute.pay');
     Route::get('/contribute/callback',       [\App\Http\Controllers\WishContributionController::class, 'paystackCallback'])->name('wish.contribute.callback');
+    Route::get('/stripe/success',            [\App\Http\Controllers\WishContributionController::class, 'stripeSuccess'])->name('wish.stripe.success');
 });
 
 Route::middleware('auth')->group(function () {
@@ -155,6 +134,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/withdrawals', [AdminController::class, 'withdrawals'])->name('withdrawals');
         Route::patch('/withdrawals/{withdrawal}/approve', [AdminController::class, 'approveWithdrawal'])->name('withdrawals.approve');
         Route::patch('/withdrawals/{withdrawal}/reject',  [AdminController::class, 'rejectWithdrawal'])->name('withdrawals.reject');
+
+        // Frame management
+        Route::get('/frames',         [AdminController::class, 'frames'])->name('frames');
+        Route::post('/frames',        [AdminController::class, 'storeFrame'])->name('frames.store');
+        Route::delete('/frames/{frame}', [AdminController::class, 'deleteFrame'])->name('frames.delete');
     });
 });
 

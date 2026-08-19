@@ -16,6 +16,10 @@ export function wishContributionModal(config) {
         amount:           '',
         note:             '',
 
+        // Guests contribute by card without an account.
+        guestName:        '',
+        guestEmail:       '',
+
         updatedProgress:  null,       // set after a successful contribution
 
         walletBalance:    config.walletBalance,
@@ -141,9 +145,20 @@ export function wishContributionModal(config) {
             }
         },
 
+        /** True once a guest has given us somewhere to send the receipt. */
+        get canGuestPay() {
+            return this.guestName.trim().length > 1
+                && /^\S+@\S+\.\S+$/.test(this.guestEmail.trim());
+        },
+
         async initiatePayment() {
             const n = parseFloat(this.amount);
             if (!n || n <= 0) { this.error = 'Please enter a valid amount.'; return; }
+
+            if (!this.isAuthenticated && !this.canGuestPay) {
+                this.error = 'Please add your name and email.';
+                return;
+            }
 
             this.loading = true;
             this.error   = '';
@@ -158,9 +173,11 @@ export function wishContributionModal(config) {
                         'Accept':       'application/json',
                     },
                     body: JSON.stringify({
-                        amount:   this.amount,
-                        currency: this.visitorCurrency,
-                        message:  this.note,
+                        amount:      this.amount,
+                        currency:    this.visitorCurrency,
+                        message:     this.note,
+                        guest_name:  this.isAuthenticated ? null : this.guestName.trim(),
+                        guest_email: this.isAuthenticated ? null : this.guestEmail.trim(),
                     }),
                 });
 

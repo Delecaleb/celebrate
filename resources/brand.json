@@ -1,0 +1,76 @@
+{
+    "$comment": [
+        "THE BRAND PALETTE — the one place to change any colour in CelebrateMi.",
+        "",
+        "Read by BOTH toolchains, so there is exactly one source of truth:",
+        "  • tailwind.config.js  imports this file and bakes the hexes into the",
+        "    utility classes (bg-primary-500, text-ink-400, border-line, …).",
+        "  • config/brand.php    exposes it to PHP; <x-brand-tokens /> then emits",
+        "    the same values as CSS custom properties (--primary-500, --secondary,",
+        "    --ink, --line, …) which every hand-written stylesheet consumes.",
+        "",
+        "Tailwind utilities read the CSS variable with the baked hex as a fallback,",
+        "so editing this file recolours the whole app immediately. Run `npm run",
+        "build` afterwards only to refresh the baked fallbacks.",
+        "",
+        "Keep every ramp at the 50…900 stops — both toolchains iterate these keys."
+    ],
+
+    "primary": {
+        "50":  "#f7f4ff",
+        "100": "#efe8ff",
+        "200": "#ded1ff",
+        "300": "#c4adff",
+        "400": "#a680fc",
+        "500": "#7c3aed",
+        "600": "#6d28d9",
+        "700": "#5b21b6",
+        "800": "#4c1d95",
+        "900": "#3c1a7a"
+    },
+
+    "secondary": {
+        "50":  "#fff9ec",
+        "100": "#fff0cd",
+        "200": "#ffdf9b",
+        "300": "#ffca63",
+        "400": "#ffb43a",
+        "500": "#f59e0b",
+        "600": "#d97e06",
+        "700": "#b45c09",
+        "800": "#92480e",
+        "900": "#783a0f"
+    },
+
+    "ink": {
+        "50":  "#f8f7fb",
+        "100": "#f1eff6",
+        "200": "#e5e2ee",
+        "300": "#cac5d8",
+        "400": "#9d97ae",
+        "500": "#6d6683",
+        "600": "#544d68",
+        "700": "#3e384e",
+        "800": "#292336",
+        "900": "#1d1828",
+        "950": "#16121f"
+    },
+
+    "surface": {
+        "base":   "#ffffff",
+        "raised": "#faf8fe"
+    },
+
+    "state": {
+        "ok":     { "base": "#0f7b57", "tint": "#e4f5ee" },
+        "warn":   { "base": "#9a5b00", "tint": "#fdf1dd" },
+        "danger": { "base": "#b4232d", "tint": "#fdeaec" }
+    },
+
+    "radius": {
+        "sm":   "12px",
+        "md":   "18px",
+        "lg":   "26px",
+        "pill": "999px"
+    }
+}

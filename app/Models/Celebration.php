@@ -41,6 +41,7 @@ class Celebration extends Model
         'template_id',
         'custom_bg',
         'custom_text',
+        'frame_id',
     ];
 
     protected $casts = [
@@ -60,6 +61,23 @@ class Celebration extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function getCoverPhotosAttribute()
+    {
+        $value = $this->cover_photo;
+        if (empty($value)) {
+            return [];
+        }
+        if (str_starts_with($value, '[') || str_starts_with($value, '{')) {
+            return json_decode($value, true) ?: [];
+        }
+        return [$value];
+    }
+
+    public function frame()
+    {
+        return $this->belongsTo(Frame::class);
+    }
+
     public function guests()
     {
         return $this->hasMany(CelebrationGuest::class);
@@ -73,6 +91,15 @@ class Celebration extends Model
     public function gifts()
     {
         return $this->hasMany(Gift::class);
+    }
+
+    /**
+     * Money given through the registry. Counts towards the amount raised just
+     * as much as a platform gift does.
+     */
+    public function contributions()
+    {
+        return $this->hasMany(WishContribution::class);
     }
 
     public function giftGoals()

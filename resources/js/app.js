@@ -14,6 +14,8 @@ import './modules/wishContributionModal';   // wishContributionModal() Alpine co
 import './modules/celebrationCustomizer'; // celebrationCustomizer() Alpine component
 import './modules/commentShare';          // shareComment() — comment-to-image share
 import './modules/photobookGenerator';    // photobookGenerator() Alpine component
+import './modules/pageRouter';            // AJAX navigation for the marketing site and dashboard
+import './modules/slugEditor';            // slugEditor() — custom celebration URL
 
 // ── Global registrations ───────────────────────────────────────────────────
 window.confetti = confetti;
@@ -23,7 +25,20 @@ Alpine.start();
 
 // ── Third-party init ───────────────────────────────────────────────────────
 
-// Initialise flatpickr on any input with the 'datepicker' class
-document.addEventListener('DOMContentLoaded', () => {
-    flatpickr('.datepicker', { dateFormat: 'Y-m-d' });
-});
+/**
+ * Initialise flatpickr on any input with the 'datepicker' class.
+ *
+ * The `:not(.flatpickr-input)` guard skips inputs flatpickr has already taken
+ * over, so this is safe to call more than once.
+ */
+function initDatepickers(root = document) {
+    const inputs = root.querySelectorAll('.datepicker:not(.flatpickr-input)');
+    if (!inputs.length) return;
+
+    flatpickr(inputs, { dateFormat: 'Y-m-d' });
+}
+
+document.addEventListener('DOMContentLoaded', () => initDatepickers());
+
+// Pages swapped in by the AJAX router may bring their own date inputs.
+window.addEventListener('route-changed', () => initDatepickers());

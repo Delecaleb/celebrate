@@ -24,44 +24,45 @@ class WalletFundingController extends Controller
     ) {}
 
     // -------------------------------------------------------------------------
-    // Initiate wallet funding — creates a pending transaction, routes to gateway
+    // Initiate wallet funding â€” creates a pending transaction, routes to gateway
     // -------------------------------------------------------------------------
 
     public function initiate(Request $request)
     {
         $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount'      => ['required', 'numeric', 'min:0.01'],
+            'wallet_type' => ['sometimes', 'string', 'in:local,global'],
         ]);
 
         $user         = Auth::user();
         $userCurrency = $this->currency->forUser($user);
-        $baseCurrency = config('currency.base', 'USD');
-        $localAmount  = (float) $request->amount;
-        $amountBase   = $userCurrency === $baseCurrency
-            ? $localAmount
-            : $this->currency->convert($localAmount, $userCurrency, $baseCurrency);
+        $walletType   = $request->input('wallet_type', 'local');
+        $amount       = (float) $request->amount;
         $reference    = 'wf-' . Str::uuid();
+
+        $currency = ($walletType === 'global') ? 'USD' : $userCurrency;
 
         // Pre-create pending transaction so we can find it on callback
         $tx = WalletTransaction::create([
             'user_id'           => $user->id,
             'type'              => 'credit',
-            'amount'            => $amountBase,
-            'currency'          => $baseCurrency,
-            'original_amount'   => $localAmount,
-            'original_currency' => $userCurrency,
+            'wallet_type'       => $walletType,
+            'amount'            => $amount,
+            'currency'          => $currency,
+            'original_amount'   => $amount,
+            'original_currency' => $currency,
             'description'       => 'Wallet top-up',
             'reference'         => $reference,
             'status'            => 'pending',
         ]);
 
         try {
-            if (strtoupper($userCurrency) === 'USD') {
+            if ($currency === 'USD') {
                 $checkoutUrl = $this->stripe->createCheckoutSession(
-                    amount:     $localAmount,
+                    amount:     $amount,
                     currency:   'USD',
                     successUrl: route('wallet.fund.stripe.success', ['reference' => $reference, 'session_id' => '{CHECKOUT_SESSION_ID}']),
-                    cancelUrl:  route('dashboard') . '?cancelled=1#wallet',
+                    cancelUrl:  route('dashboard.wallet') . '?cancelled=1',
                     metadata:   ['wallet_tx_id' => $tx->id, 'reference' => $reference],
                 );
 
@@ -72,8 +73,8 @@ class WalletFundingController extends Controller
                 ]);
             }
 
-            // NGN (or any non-USD) → Paystack
-            $txn = $this->paystack->initTransaction($localAmount, $userCurrency, [
+            // NGN (or any non-USD) â†’ Paystack
+            $txn = $this->paystack->initTransaction($amount, $currency, [
                 'email'        => $user->email,
                 'reference'    => $reference,
                 'wallet_tx_id' => $tx->id,
@@ -99,7 +100,7 @@ class WalletFundingController extends Controller
     }
 
     // -------------------------------------------------------------------------
-    // Paystack callback — verify and credit the wallet
+    // Paystack callback â€” verify and credit the wallet
     // -------------------------------------------------------------------------
 
     public function paystackCallback(Request $request)
@@ -107,8 +108,7 @@ class WalletFundingController extends Controller
         $reference = $request->query('reference') ?? $request->query('trxref');
 
         if (! $reference) {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('error', 'Invalid payment reference.');
         }
 
@@ -122,8 +122,7 @@ class WalletFundingController extends Controller
                 'response'  => $response->json(),
             ]);
 
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('error', 'Payment could not be verified. Please contact support.');
         }
 
@@ -132,27 +131,28 @@ class WalletFundingController extends Controller
             ->first();
 
         if (! $tx) {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('error', 'Transaction record not found.');
         }
 
         if ($tx->status === 'completed') {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('success', 'Your wallet was already funded.');
         }
 
         DB::transaction(function () use ($tx) {
             $tx->update(['status' => 'completed']);
-            $tx->user->increment('wallet_balance', (float) $tx->amount);
+            if ($tx->wallet_type === 'global') {
+                $tx->user->increment('global_wallet_balance', (float) $tx->amount);
+            } else {
+                $tx->user->increment('wallet_balance', (float) $tx->amount);
+            }
         });
 
         $symbol  = config("currency.currencies.{$tx->original_currency}.symbol", $tx->original_currency);
         $display = $symbol . number_format((float) $tx->original_amount, 2);
 
-        return redirect()->route('dashboard')
-            ->with('active_tab', 'wallet')
+        return redirect()->route('dashboard.wallet')
             ->with('success', "{$display} added to your wallet successfully!");
     }
 
@@ -166,8 +166,7 @@ class WalletFundingController extends Controller
         $sessionId = $request->query('session_id');
 
         if (! $reference) {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('error', 'Invalid session reference.');
         }
 
@@ -177,40 +176,35 @@ class WalletFundingController extends Controller
             ->first();
 
         if (! $tx) {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('error', 'Transaction record not found.');
         }
 
         if ($tx->status === 'completed') {
-            return redirect()->route('dashboard')
-                ->with('active_tab', 'wallet')
+            return redirect()->route('dashboard.wallet')
                 ->with('success', 'Your wallet was already funded.');
         }
 
-        // Verify session status via Stripe API
-        if ($sessionId) {
-            try {
-                $session = $this->stripe->retrieveCheckoutSession($sessionId);
-                if ($session->payment_status !== 'paid') {
-                    return redirect()->route('dashboard')
-                        ->with('active_tab', 'wallet')
-                        ->with('error', 'Payment was not completed.');
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Stripe session retrieval failed', ['error' => $e->getMessage()]);
-            }
+        // The wallet is only credited once Stripe confirms this exact reference.
+        // A missing session id or an unreachable Stripe used to be logged and
+        // then ignored, crediting the balance for a payment that never happened.
+        if (! $this->stripe->confirmPaidFor($sessionId, $reference)) {
+            return redirect()->route('dashboard.wallet')
+                ->with('error', 'We could not confirm that payment. If you were charged, contact support and quote ' . $reference . '.');
         }
 
         DB::transaction(function () use ($tx) {
             $tx->update(['status' => 'completed']);
-            $tx->user->increment('wallet_balance', (float) $tx->amount);
+            if ($tx->wallet_type === 'global') {
+                $tx->user->increment('global_wallet_balance', (float) $tx->amount);
+            } else {
+                $tx->user->increment('wallet_balance', (float) $tx->amount);
+            }
         });
 
         $display = '$' . number_format((float) $tx->original_amount, 2);
 
-        return redirect()->route('dashboard')
-            ->with('active_tab', 'wallet')
+        return redirect()->route('dashboard.wallet')
             ->with('success', "{$display} added to your wallet successfully!");
     }
 }

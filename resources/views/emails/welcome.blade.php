@@ -37,7 +37,11 @@
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
         <tr>
             <td align="center">
-                <a href="{{ route('celebrations.create') }}"
+                {{-- There is no standalone create page — new celebrations are
+                     made through the modal on the dashboard, so that is where
+                     this has to land. route('celebrations.create') does not
+                     exist and threw on every single registration. --}}
+                <a href="{{ route('dashboard') }}"
                    style="display:inline-block; background: linear-gradient(135deg, #7C3AED, #A855F7); color:#ffffff; font-size:15px; font-weight:700; padding:14px 36px; border-radius:8px; text-decoration:none; letter-spacing:0.3px;">
                     Create Your First Celebration
                 </a>

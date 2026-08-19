@@ -26,8 +26,7 @@ class BankAccountController extends Controller
         ]);
 
         return back()
-            ->with('success', 'Bank account saved successfully.')
-            ->with('active_tab', 'bank');
+            ->with('success', 'Bank account saved successfully.');
     }
 
     public function update(Request $request, BankAccount $bankAccount)
@@ -47,8 +46,7 @@ class BankAccountController extends Controller
         ]);
 
         return back()
-            ->with('success', 'Bank account updated.')
-            ->with('active_tab', 'bank');
+            ->with('success', 'Bank account updated.');
     }
 
     public function destroy(BankAccount $bankAccount)
@@ -64,8 +62,7 @@ class BankAccountController extends Controller
         }
 
         return back()
-            ->with('success', 'Bank account removed.')
-            ->with('active_tab', 'bank');
+            ->with('success', 'Bank account removed.');
     }
 
     public function setDefault(BankAccount $bankAccount)
@@ -76,7 +73,6 @@ class BankAccountController extends Controller
         $bankAccount->update(['is_default' => true]);
 
         return back()
-            ->with('success', 'Default account updated.')
-            ->with('active_tab', 'bank');
+            ->with('success', 'Default account updated.');
     }
 }

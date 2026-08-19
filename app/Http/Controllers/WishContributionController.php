@@ -6,6 +6,8 @@ use App\Models\Wish;
 use App\Models\WishContribution;
 use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\WalletService;
+use App\Services\PaymentSystem\StripeService;
+use App\Services\PaymentSystem\PaystackService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -17,6 +19,8 @@ class WishContributionController extends Controller
     public function __construct(
         private WalletService   $wallet,
         private CurrencyService $currency,
+        private StripeService   $stripe,
+        private PaystackService $paystack,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -38,14 +42,9 @@ class WishContributionController extends Controller
         $user            = Auth::user();
         $visitorCurrency = strtoupper($request->currency);
         $amountDisplay   = (float) $request->amount;
-        $baseCurrency    = config('currency.base', 'USD');
+        $walletType      = ($visitorCurrency === 'USD') ? 'global' : 'local';
 
-        $rate      = $this->currency->getRate($baseCurrency, $visitorCurrency);
-        $amountUsd = $visitorCurrency === $baseCurrency
-            ? $amountDisplay
-            : $this->currency->convert($amountDisplay, $visitorCurrency, $baseCurrency);
-
-        if (! $this->wallet->hasSufficientBalance($user, $amountUsd)) {
+        if (! $this->wallet->hasSufficientBalance($user, $amountDisplay, $walletType)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Insufficient wallet balance.',
@@ -61,9 +60,9 @@ class WishContributionController extends Controller
             'contributor_user_id' => $user->id,
             'contributor_name'    => $user->first_name . ' ' . $user->last_name,
             'contributor_email'   => $user->email,
-            'amount'              => $amountUsd,
+            'amount'              => $amountDisplay,
             'currency'            => $visitorCurrency,
-            'conversion_rate'     => $rate,
+            'conversion_rate'     => 1.0,
             'original_amount'     => $amountDisplay,
             'contribution_type'   => 'cash',
             'message'             => $request->message,
@@ -74,28 +73,41 @@ class WishContributionController extends Controller
 
         $this->wallet->debit(
             user:             $user,
-            amountBase:       $amountUsd,
+            amount:           $amountDisplay,
             description:      "Wish contribution: {$wish->name}",
             reference:        $reference,
             source:           $contribution,
             originalAmount:   $amountDisplay,
             originalCurrency: $visitorCurrency,
+            walletType:       $walletType
         );
 
-        $wish->increment('current_amount', $amountUsd);
+        // Credit celebration owner's wallet
+        $owner = $wish->celebration->user;
+        $this->wallet->credit(
+            user:             $owner,
+            amount:           $amountDisplay,
+            description:      "Wish contribution from {$user->first_name}: {$wish->name}",
+            reference:        $reference,
+            source:           $contribution,
+            originalAmount:   $amountDisplay,
+            originalCurrency: $visitorCurrency,
+            walletType:       $walletType
+        );
+
+        $incrementAmount = $amountDisplay;
+        if (strtoupper($visitorCurrency) !== strtoupper($wish->currency)) {
+            $incrementAmount = $this->currency->convert($amountDisplay, $visitorCurrency, $wish->currency);
+        }
+        $wish->increment('current_amount', $incrementAmount);
         $wish->increment('contribution_count');
 
-        $newBalanceDisplay = $this->wallet->balance($user, $visitorCurrency);
+        $newBalanceDisplay = $this->wallet->balance($user, $walletType);
         $symbol            = config("currency.currencies.{$visitorCurrency}.symbol", $visitorCurrency);
 
         $fresh          = $wish->fresh();
         $targetDisplay  = $fresh->displayAmount($visitorCurrency);
-        $wishRate       = (float) ($fresh->conversion_rate ?? 1);
-        $currentDisplay = match (true) {
-            $visitorCurrency === $fresh->base_currency                             => (float) $fresh->current_amount,
-            $visitorCurrency === $fresh->converted_currency && $wishRate > 0       => round((float) $fresh->current_amount * $wishRate, 2),
-            default                                                                => (float) $fresh->current_amount,
-        };
+        $currentDisplay = (float) $fresh->current_amount;
 
         return response()->json([
             'success'     => true,
@@ -115,37 +127,34 @@ class WishContributionController extends Controller
 
     public function initiatePayment(Request $request, Wish $wish)
     {
-        if (! Auth::check()) {
-            return response()->json(['message' => 'Authentication required.'], 401);
-        }
+        // Contributing by card needs no account — just a name and an email for
+        // the receipt. Signing in is only for paying out of a wallet.
+        $guest = ! Auth::check();
 
         $request->validate([
-            'amount'   => ['required', 'numeric', 'min:0.01'],
-            'currency' => ['required', 'string', 'size:3'],
-            'message'  => ['nullable', 'string', 'max:500'],
+            'amount'      => ['required', 'numeric', 'min:0.01'],
+            'currency'    => ['required', 'string', 'size:3'],
+            'message'     => ['nullable', 'string', 'max:500'],
+            'guest_name'  => [$guest ? 'required' : 'nullable', 'string', 'max:120'],
+            'guest_email' => [$guest ? 'required' : 'nullable', 'email', 'max:190'],
         ]);
 
         $user            = Auth::user();
+        $contributorName = $guest ? $request->guest_name  : trim($user->first_name . ' ' . $user->last_name);
+        $contributorMail = $guest ? $request->guest_email : $user->email;
         $visitorCurrency = strtoupper($request->currency);
         $amountDisplay   = (float) $request->amount;
-        $baseCurrency    = config('currency.base', 'USD');
-
-        $rate      = $this->currency->getRate($baseCurrency, $visitorCurrency);
-        $amountUsd = $visitorCurrency === $baseCurrency
-            ? $amountDisplay
-            : $this->currency->convert($amountDisplay, $visitorCurrency, $baseCurrency);
-
-        $reference = 'wish-pay-' . Str::uuid();
+        $reference       = 'wish-pay-' . Str::uuid();
 
         $contribution = WishContribution::create([
             'wish_id'             => $wish->id,
             'celebration_id'      => $wish->celebration_id,
-            'contributor_user_id' => $user->id,
-            'contributor_name'    => $user->first_name . ' ' . $user->last_name,
-            'contributor_email'   => $user->email,
-            'amount'              => $amountUsd,
+            'contributor_user_id' => $user?->id,
+            'contributor_name'    => $contributorName,
+            'contributor_email'   => $contributorMail,
+            'amount'              => $amountDisplay,
             'currency'            => $visitorCurrency,
-            'conversion_rate'     => $rate,
+            'conversion_rate'     => 1.0,
             'original_amount'     => $amountDisplay,
             'contribution_type'   => 'cash',
             'message'             => $request->message,
@@ -153,6 +162,35 @@ class WishContributionController extends Controller
             'payment_status'      => 'pending',
             'is_anonymous'        => false,
         ]);
+
+        if ($visitorCurrency === 'USD') {
+            try {
+                $checkoutUrl = $this->stripe->createCheckoutSession(
+                    amount:     $amountDisplay,
+                    currency:   'USD',
+                    successUrl: route('wish.stripe.success') . '?reference=' . $reference . '&session_id={CHECKOUT_SESSION_ID}',
+                    cancelUrl:  route('celebrations.show', $wish->celebration->slug) . '?cancelled=1',
+                    metadata:   ['wish_id' => $wish->id, 'reference' => $reference],
+                );
+
+                return response()->json([
+                    'success'           => true,
+                    'authorization_url' => $checkoutUrl,
+                ]);
+            } catch (\Throwable $e) {
+                $contribution->delete();
+                Log::error('Stripe wish payment init failed', ['error' => $e->getMessage()]);
+
+                return response()->json([
+                    'success' => false,
+                    // A dead gateway key is indistinguishable from a real
+                    // failure behind the generic line — show it while debugging.
+                    'message' => config('app.debug')
+                        ? 'Stripe payment initialization failed: ' . $e->getMessage()
+                        : 'Stripe payment initialization failed.',
+                ], 502);
+            }
+        }
 
         $secretKey = config('services.paystack.secret');
         if (! $secretKey) {
@@ -162,7 +200,7 @@ class WishContributionController extends Controller
 
         $response = Http::withToken($secretKey)
             ->post('https://api.paystack.co/transaction/initialize', [
-                'email'        => $user->email,
+                'email'        => $contributorMail,
                 'amount'       => (int) round($amountDisplay * 100),
                 'currency'     => $visitorCurrency,
                 'reference'    => $reference,
@@ -227,8 +265,88 @@ class WishContributionController extends Controller
 
         $contribution->update(['payment_status' => 'paid']);
 
-        $contribution->wish->increment('current_amount', $contribution->amount);
-        $contribution->wish->increment('contribution_count');
+        $wish = $contribution->wish;
+        $incrementAmount = $contribution->amount;
+        if (strtoupper($contribution->currency) !== strtoupper($wish->currency)) {
+            $incrementAmount = $this->currency->convert($contribution->amount, $contribution->currency, $wish->currency);
+        }
+        $wish->increment('current_amount', $incrementAmount);
+        $wish->increment('contribution_count');
+
+        // Credit celebration owner's local wallet
+        $owner = $contribution->celebration->user;
+        $this->wallet->credit(
+            user:             $owner,
+            amount:           $contribution->amount,
+            description:      "Wish contribution: {$contribution->wish->name}",
+            reference:        $contribution->payment_reference,
+            source:           $contribution,
+            originalAmount:   $contribution->amount,
+            originalCurrency: $contribution->currency,
+            walletType:       'local'
+        );
+
+        return redirect()
+            ->route('celebrations.show', $contribution->celebration->slug)
+            ->with('success', '🎉 Your contribution has been added — thank you!');
+    }
+
+    // -------------------------------------------------------------------------
+    // Stripe callback — verify and fulfil the pending contribution
+    // -------------------------------------------------------------------------
+
+    public function stripeSuccess(Request $request)
+    {
+        $reference = $request->query('reference');
+        $sessionId = $request->query('session_id');
+
+        if (! $reference || ! str_starts_with((string) $reference, 'wish-pay-')) {
+            return redirect()->route('dashboard')->with('error', 'Invalid payment reference.');
+        }
+
+        $contribution = WishContribution::where('payment_reference', $reference)->first();
+
+        if (! $contribution) {
+            return redirect()->route('dashboard')->with('error', 'Contribution record not found.');
+        }
+
+        if ($contribution->payment_status === 'paid') {
+            return redirect()
+                ->route('celebrations.show', $contribution->celebration->slug)
+                ->with('success', 'Your contribution was already processed!');
+        }
+
+        // Nothing is credited until Stripe confirms this exact reference — a
+        // missing session id or a failed lookup used to fall straight through
+        // to marking the contribution paid.
+        if (! $this->stripe->confirmPaidFor($sessionId, $reference)) {
+            return redirect()
+                ->route('celebrations.show', $contribution->celebration->slug)
+                ->with('error', 'We could not confirm that payment. If you were charged, contact support and quote ' . $reference . '.');
+        }
+
+        $contribution->update(['payment_status' => 'paid']);
+
+        $wish = $contribution->wish;
+        $incrementAmount = $contribution->amount;
+        if (strtoupper($contribution->currency) !== strtoupper($wish->currency)) {
+            $incrementAmount = $this->currency->convert($contribution->amount, $contribution->currency, $wish->currency);
+        }
+        $wish->increment('current_amount', $incrementAmount);
+        $wish->increment('contribution_count');
+
+        // Credit celebration owner's global wallet
+        $owner = $contribution->celebration->user;
+        $this->wallet->credit(
+            user:             $owner,
+            amount:           $contribution->amount,
+            description:      "Wish contribution: {$contribution->wish->name}",
+            reference:        $contribution->payment_reference,
+            source:           $contribution,
+            originalAmount:   $contribution->amount,
+            originalCurrency: $contribution->currency,
+            walletType:       'global'
+        );
 
         return redirect()
             ->route('celebrations.show', $contribution->celebration->slug)

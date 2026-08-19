@@ -60,8 +60,32 @@
             {{-- ── Body ─────────────────────────────────────────────────────── --}}
             <div class="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
 
+                {{-- Mobile Tabs Navigation --}}
+                <div class="md:hidden flex border-b border-gray-100 shrink-0">
+                    <button 
+                        type="button"
+                        @click="activeTab = 'settings'" 
+                        :class="activeTab === 'settings' ? 'border-b-2 border-violet-600 text-violet-600 font-bold' : 'text-gray-500'" 
+                        class="flex-1 py-3 text-xs text-center focus:outline-none"
+                    >
+                        <i class="mdi mdi-cog-outline mr-1"></i> Configure
+                    </button>
+                    <button 
+                        type="button"
+                        @click="activeTab = 'preview'" 
+                        :class="activeTab === 'preview' ? 'border-b-2 border-violet-600 text-violet-600 font-bold' : 'text-gray-500'" 
+                        class="flex-1 py-3 text-xs text-center focus:outline-none relative"
+                    >
+                        <i class="mdi mdi-book-open-outline mr-1"></i> Preview
+                        <span x-show="generated && !generating" class="absolute top-2.5 right-6 w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    </button>
+                </div>
+
                 {{-- ── LEFT: Settings ───────────────────────────────────────── --}}
-                <div class="md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-gray-100 overflow-y-auto p-5 space-y-5">
+                <div 
+                    :class="activeTab === 'settings' ? 'block' : 'hidden md:block'"
+                    class="md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-gray-100 overflow-y-auto p-5 space-y-5"
+                >
 
                     {{-- Per-page setting --}}
                     <div>
@@ -227,7 +251,25 @@
                 </div>
 
                 {{-- ── RIGHT: Preview ────────────────────────────────────────── --}}
-                <div class="flex-1 flex flex-col bg-gray-50 overflow-hidden min-h-0">
+                <div 
+                    :class="activeTab === 'preview' ? 'flex' : 'hidden md:flex'"
+                    class="flex-1 flex flex-col bg-gray-50 overflow-hidden min-h-0 relative"
+                >
+                    {{-- Success Toast --}}
+                    <div 
+                        x-show="showSuccessToast" 
+                        x-transition:enter="transition ease-out duration-300"
+                        x-transition:enter-start="opacity-0 -translate-y-4"
+                        x-transition:enter-end="opacity-100 translate-y-0"
+                        x-transition:leave="transition ease-in duration-200"
+                        x-transition:leave-start="opacity-100 translate-y-0"
+                        x-transition:leave-end="opacity-0 -translate-y-4"
+                        class="absolute top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-lg z-30 flex items-center gap-2"
+                        style="display: none;"
+                    >
+                        <i class="mdi mdi-checkbox-marked-circle-outline text-base"></i>
+                        <span>Photobook Generated!</span>
+                    </div>
 
                     {{-- Empty state --}}
                     <template x-if="!generated && !generating">

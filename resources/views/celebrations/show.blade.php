@@ -1,857 +1,1052 @@
-<x-guest-layout>
+<x-guest-layout :title="$celebration->title . ' — ' . config('app.name')">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
 {{--
-    Template CSS overrides — uses custom properties set on the root wrapper.
-    Only elements with these specific classes are affected; everything else
-    falls back to the default Tailwind utility values.
+    Celebration page.
+
+    Two equal columns, edge to edge, no page padding:
+      left  — the celebrant's photos, full bleed
+      right — everything else, in tabs
+
+    Owner sees Wishes / Registry / Gifts / Settings / Photobook.
+    Visitors see Wishes / Registry / Gifts.
+
+    On small screens the photo goes full-screen and fixed, and the tab panel
+    scrolls up over it.
+
+    Template theming works through the `celebration-*` classes below — the
+    customizer sets --tpl-* custom properties on the root element, so those
+    class names must be preserved.
 --}}
 <style>
-    .celebration-page    { background-color: var(--tpl-bg,           #F9FAFB) !important; }
-    .celebration-cover   {
-        border-color:  var(--tpl-border-color, #E5E7EB) !important;
-        border-width:  var(--tpl-border-width, 2px)     !important;
-        border-style:  var(--tpl-border-style, solid)   !important;
+    .celebration-page      { background-color: var(--tpl-bg,        var(--surface))   !important; }
+    .celebration-card      { background-color: var(--tpl-card,      var(--surface))   !important; }
+    .celebration-title     { color:            var(--tpl-text,      var(--ink))       !important; }
+    .celebration-text-muted{ color:            var(--tpl-text-muted,var(--muted))     !important; }
+    .celebration-cover     {
+        border-color: var(--tpl-border-color, transparent) !important;
+        border-width: var(--tpl-border-width, 0px)         !important;
+        border-style: var(--tpl-border-style, solid)       !important;
     }
-    .celebration-card    { background-color: var(--tpl-card,         #FFFFFF) !important; }
-    .celebration-title   { color: var(--tpl-text,                    #111827) !important; }
-    .celebration-text-muted { color: var(--tpl-text-muted,           #6B7280) !important; }
+
+    /* ══ SHELL ═══════════════════════════════════════════════════════
+       Two equal columns, each its own scroll context, no outer padding. */
+    .cel-shell {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    /* ── left: the photos ─────────────────────────────────────────── */
+    .cel-visual {
+        position: relative;
+        overflow: hidden;
+        background: var(--ink-900);
+    }
+    .cel-visual .swiper,
+    .cel-visual .swiper-wrapper,
+    .cel-visual .swiper-slide { width: 100%; height: 100%; }
+    .cel-visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* identity sits on the photo, so the panel stays purely functional */
+    .cel-veil {
+        position: absolute; inset: 0; pointer-events: none; z-index: 2;
+        background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 34%, transparent 62%);
+    }
+    .cel-id {
+        position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+        padding: 2.5rem 2.75rem;
+        color: #fff;
+    }
+    .cel-eyebrow {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        font-size: 0.66rem; font-weight: 800; letter-spacing: 0.16em;
+        text-transform: uppercase; color: rgba(255,255,255,0.72);
+    }
+    .cel-title {
+        font-family: 'Outfit', sans-serif; font-weight: 900;
+        font-size: clamp(1.9rem, 3.2vw, 3.1rem); line-height: 0.98;
+        letter-spacing: -0.04em; margin-top: 0.7rem;
+    }
+    .cel-sub {
+        margin-top: 0.85rem; font-size: 0.86rem;
+        color: rgba(255,255,255,0.78);
+        display: flex; flex-wrap: wrap; gap: 1.1rem;
+    }
+    .cel-sub span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+    /* floating controls over the photo */
+    .cel-float {
+        position: absolute; top: 1.5rem; z-index: 5;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cel-float.is-left  { left: 1.5rem; }
+    .cel-float.is-right { right: 1.5rem; }
+    .cel-fbtn {
+        width: 38px; height: 38px; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.42); color: #fff;
+        border: 1px solid rgba(255,255,255,0.22);
+        backdrop-filter: blur(8px);
+        font-size: 1.05rem; cursor: pointer; text-decoration: none;
+        transition: background 0.15s;
+    }
+    .cel-fbtn:hover { background: rgba(0,0,0,0.68); }
+    .cel-fbtn.is-accent { background: var(--primary); border-color: var(--primary); }
+    .cel-fbtn.is-accent:hover { background: var(--primary-d); }
+
+    /* the gift shortcut is mobile-only — on desktop the Gifts tab is right there */
+    .cel-gift-float { display: none; }
+
+    .cel-chip {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.3rem 0.7rem; border-radius: 999px;
+        background: rgba(0,0,0,0.42); border: 1px solid rgba(255,255,255,0.22);
+        backdrop-filter: blur(8px);
+        font-size: 0.7rem; font-weight: 700; color: #fff;
+    }
+
+    /* ── right: the tab panel ─────────────────────────────────────── */
+    .cel-panel {
+        display: flex; flex-direction: column;
+        min-width: 0; overflow: hidden;
+        border-left: 1px solid var(--line);
+    }
+    .cel-tabs {
+        display: flex; flex-shrink: 0;
+        border-bottom: 1px solid var(--line);
+        overflow-x: auto; scrollbar-width: none;
+    }
+    .cel-tabs::-webkit-scrollbar { display: none; }
+    .cel-tab {
+        flex: 1 0 auto; min-width: 0;
+        display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+        padding: 0.95rem 0.6rem 0.8rem;
+        background: none; border: 0; border-bottom: 2px solid transparent;
+        font-family: inherit; font-size: 0.68rem; font-weight: 700;
+        letter-spacing: 0.02em; color: var(--muted);
+        cursor: pointer; white-space: nowrap;
+        transition: color 0.15s, border-color 0.15s;
+    }
+    .cel-tab i { font-size: 1.15rem; line-height: 1; }
+    .cel-tab:hover { color: var(--ink); }
+    .cel-tab[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .cel-body { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+    .cel-body::-webkit-scrollbar { width: 7px; }
+    .cel-body::-webkit-scrollbar-thumb { background: var(--line); }
+    .cel-pad { padding: 1.75rem 1.9rem 3rem; }
+
+    /* ══ SHARED BITS ═════════════════════════════════════════════════ */
+    .cel-sec + .cel-sec { margin-top: 2.25rem; }
+    .cel-sec-t {
+        font-size: 0.64rem; font-weight: 800; letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--muted-2); margin-bottom: 0.9rem;
+    }
+
+    /* messages */
+    .msg { display: flex; gap: 0.8rem; padding: 1.1rem 0; border-top: 1px solid var(--line); }
+    .msg:first-child { border-top: 0; padding-top: 0; }
+    .msg-name { font-size: 0.85rem; font-weight: 700; }
+    .msg-time { font-size: 0.72rem; color: var(--muted-2); }
+    .msg-text { font-size: 0.92rem; line-height: 1.6; margin-top: 0.3rem; }
+    .msg-media { margin-top: 0.7rem; overflow: hidden; max-width: 300px; border: 1px solid var(--line); }
+    .msg-media img { width: 100%; display: block; max-height: 260px; object-fit: cover; }
+
+    .composer { border: 1px solid var(--line); padding: 0.9rem; }
+    .composer textarea {
+        width: 100%; border: 0; resize: none; font-family: inherit;
+        font-size: 0.92rem; line-height: 1.55; background: transparent;
+        padding: 0.2rem 0.1rem;
+    }
+    .composer textarea:focus { outline: none; }
+    .composer-tools {
+        display: flex; align-items: center; gap: 0.3rem;
+        margin-top: 0.5rem; padding-top: 0.65rem; border-top: 1px solid var(--line);
+    }
+
+    .vid-tile { position: relative; width: 150px; aspect-ratio: 3/4; overflow: hidden; background: #000; cursor: pointer; }
+    .vid-tile video { width: 100%; height: 100%; object-fit: cover; }
+
+    /* registry — same 4-across grid as the gifts tab */
+    .reg-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .reg-cell {
+        position: relative; display: flex; flex-direction: column;
+        background: transparent; text-align: center; cursor: pointer;
+        border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+        padding: 0.75rem 0.5rem 0.7rem;
+        transition: background 0.14s;
+    }
+    .reg-cell:hover { background: var(--surface-2); }
+    .reg-cell.is-done { opacity: 0.55; }
+    .reg-img {
+        width: 100%; aspect-ratio: 1; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--surface-2);
+    }
+    .reg-img img { width: 100%; height: 100%; object-fit: cover; }
+    .reg-img i { font-size: 1.5rem; color: var(--muted-2); }
+    .reg-name {
+        font-size: 0.7rem; font-weight: 700; margin-top: 0.5rem;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* the ask, written on the item — no progress bar, no "x of y" */
+    .reg-amt { font-size: 0.68rem; font-weight: 800; color: var(--primary); margin-top: 0.15rem; }
+
+    /* supporters */
+    .sup-line {
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        background: none; border: 0; padding: 0; cursor: pointer;
+        font-family: inherit; font-size: 0.78rem; color: var(--muted);
+        text-align: left;
+    }
+    .sup-line:hover { color: var(--ink); }
+    .sup-line strong { font-weight: 700; color: var(--ink); }
+    .sup-list { margin-top: 1rem; border-top: 1px solid var(--line); }
+    .sup-item {
+        display: flex; align-items: center; gap: 0.7rem;
+        padding: 0.7rem 0; border-bottom: 1px solid var(--line);
+    }
+    .sup-av {
+        width: 30px; height: 30px; flex-shrink: 0; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--primary-l); color: var(--primary);
+        font-size: 0.68rem; font-weight: 800; text-transform: uppercase;
+    }
+    .sup-name { font-size: 0.82rem; font-weight: 600; }
+    .sup-amt  { margin-left: auto; font-size: 0.8rem; font-weight: 700; }
+    .reg-flag {
+        position: absolute; top: 0.5rem; right: 0.5rem;
+        font-size: 0.55rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+        padding: 0.12rem 0.4rem; border-radius: 999px;
+        background: var(--primary); color: #fff;
+    }
+    /* owner-only remove control, revealed on hover over the cell */
+    .reg-wrap { position: relative; }
+    .reg-del {
+        position: absolute; top: 0.35rem; left: 0.35rem; z-index: 2;
+        width: 22px; height: 22px; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--surface); color: var(--muted);
+        border: 1px solid var(--line); cursor: pointer;
+        font-size: 0.8rem; opacity: 0;
+        transition: opacity 0.14s, color 0.14s, border-color 0.14s;
+    }
+    .reg-wrap:hover .reg-del, .reg-del:focus-visible { opacity: 1; }
+    .reg-del:hover { color: var(--primary); border-color: var(--primary); }
+
+    /* still used by the owner's add-an-item form */
+    .wl-thumb {
+        width: 44px; height: 44px; flex-shrink: 0; overflow: hidden;
+        background: var(--surface-2); border: 1px solid var(--line);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .wl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .wl-amt  { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
+
+    /* gifts */
+    .cel-raised {
+        font-family: 'Outfit', sans-serif; font-weight: 900;
+        font-size: 2.4rem; line-height: 1; letter-spacing: -0.045em;
+        color: var(--primary);
+    }
+    .gift-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .gift-cell {
+        position: relative; aspect-ratio: 1; background: transparent;
+        display: flex; align-items: center; justify-content: center;
+        border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+        cursor: pointer; transition: background 0.14s;
+    }
+    .gift-cell:hover { background: var(--surface-2); }
+    .gift-cell img { width: 58%; height: 58%; object-fit: contain; opacity: 0.3; filter: grayscale(1); }
+    .gift-cell.is-got img { opacity: 1; filter: none; }
+    .gift-n { position: absolute; bottom: 4px; right: 5px; font-size: 0.6rem; font-weight: 800; color: var(--primary); }
+
+    /* settings */
+    .set-field + .set-field { margin-top: 1rem; }
+    .set-label {
+        display: block; margin-bottom: 0.35rem;
+        font-size: 0.64rem; font-weight: 800; letter-spacing: 0.11em;
+        text-transform: uppercase; color: var(--muted);
+    }
+    .set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .set-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 0.5rem; }
+    .set-swatch {
+        padding: 0; border: 1px solid var(--line); background: none; cursor: pointer;
+        position: relative; overflow: hidden;
+    }
+    .set-swatch[aria-pressed="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+    .set-swatch span { display: block; height: 34px; }
+    .set-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+    .set-photo { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); }
+    .set-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .set-add {
+        display: flex; align-items: center; justify-content: center;
+        aspect-ratio: 1; cursor: pointer; color: var(--muted-2);
+        border: 1px dashed var(--line); font-size: 1.3rem;
+    }
+    .set-add:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* empty */
+    .cel-empty { text-align: center; padding: 3rem 1rem; }
+    .cel-empty i { font-size: 2rem; color: var(--muted-2); }
+    .cel-empty p { font-size: 0.86rem; color: var(--muted); margin-top: 0.6rem; }
+
+    /* ══ MOBILE ══════════════════════════════════════════════════════
+       One column, one scroll. The photo sits in the normal flow and scrolls
+       away with everything else; the panel lifts just far enough to tuck its
+       rounded top over the foot of the photo. */
+    @media (max-width: 900px) {
+        .cel-shell { display: block; height: auto; overflow: visible; }
+
+        .cel-visual {
+            position: relative; inset: auto;
+            /* the photo is the point of the page — give it most of the first
+               screen and leave just enough room below to show the tabs exist */
+            width: 100%; height: 74vh; min-height: 400px;
+            z-index: 0;
+        }
+        /* clear of the panel's overlap so the name is never clipped */
+        .cel-id { bottom: 0; padding: 2rem 1.5rem 3rem; }
+        .cel-title { font-size: clamp(1.75rem, 8.5vw, 2.4rem); }
+
+        .cel-panel {
+            position: relative; z-index: 2;
+            /* the whole overlap — a hint that there is more below, nothing more */
+            margin-top: -20px;
+            border-left: 0; border-top: 1px solid var(--line);
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -12px 30px rgba(0,0,0,0.18);
+            overflow: visible;
+        }
+        /* tabs pin to the top once the photo has scrolled past */
+        .cel-tabs {
+            position: sticky; top: 0; z-index: 3;
+            border-radius: 20px 20px 0 0;
+            background-color: var(--tpl-card, var(--surface));
+        }
+        .cel-tabs::before {
+            content: ''; position: absolute; top: 7px; left: 50%;
+            width: 36px; height: 3px; margin-left: -18px; border-radius: 999px;
+            background: var(--line);
+        }
+        .cel-tab { padding-top: 1.15rem; }
+        .cel-body { overflow: visible; }
+        .cel-pad { padding: 1.5rem 1.25rem 4rem; }
+
+        /* A video wish IS the message, so on a phone it spans the whole row —
+           pulled back out of the 38px avatar gutter and its 0.8rem gap. */
+        .vid-tile {
+            width: auto;
+            margin-left: calc(-38px - 0.8rem);
+            aspect-ratio: 4/5;
+        }
+        .msg-media { max-width: none; }
+
+        .cel-gift-float { display: inline-flex; }
+    }
+
+    @media (max-width: 420px) {
+        .cel-tab { font-size: 0.62rem; padding-left: 0.4rem; padding-right: 0.4rem; }
+        .set-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+    }
 </style>
+
 @php
-/* Server-side initial values — applied before Alpine loads to prevent FOUC */
-$_tpl        = $celebration->template;
-$_initBg     = $celebration->custom_bg   ?? $_tpl?->page_bg;
-$_initText   = $celebration->custom_text ?? $_tpl?->text_primary;
+    $_tpl      = $celebration->template;
+    $_initBg   = $celebration->custom_bg   ?? $_tpl?->page_bg;
+    $_initText = $celebration->custom_text ?? $_tpl?->text_primary;
+
+    // NB: $supporters is the grouped collection passed in by the controller —
+    // don't shadow it here.
+    $coverPhotos = $celebration->cover_photos;
+
+    $templateData = $templates->map(fn($t) => $t->only([
+        'id', 'name', 'slug', 'icon', 'description',
+        'page_bg', 'card_bg', 'text_primary', 'text_secondary', 'accent_color',
+        'photo_border_style', 'photo_border_color', 'photo_border_width', 'wishes_layout',
+    ]))->values();
+
+    $customizerConfig = [
+        'templates'         => $templateData,
+        'currentTemplateId' => $celebration->template_id,
+        'customBg'          => $celebration->custom_bg  ?? '',
+        'customText'        => $celebration->custom_text ?? '',
+        'applyUrl'          => $isOwner ? route('celebration.template.apply', $celebration) : '',
+        'csrfToken'         => csrf_token(),
+    ];
+
+    // cover_photo is a JSON array once there is more than one photo, so the
+    // photobook and share cards have to read the first entry, not the column.
+    $coverPhotoUrl = ($coverPhotos[0] ?? null)
+        ? asset('storage/'.$coverPhotos[0])
+        : ($celebration->celebrant_photo ? asset('storage/'.$celebration->celebrant_photo) : '');
+
+    $videoWishes = $celebration->comments->where('media_type', 'video')->map(fn ($c) => [
+        'id'        => $c->id,
+        'author'    => $c->user ? trim($c->user->first_name.' '.$c->user->last_name) : ($c->guest_name ?? 'Anonymous'),
+        'message'   => $c->message,
+        'media_url' => Str::startsWith($c->media_url, ['http://','https://']) ? $c->media_url : asset('storage/'.$c->media_url),
+        'time'      => $c->created_at->diffForHumans(),
+    ])->values()->toArray();
+
+    $eventDate = $celebration->event_date ?? $celebration->start_date;
+
+    // Settings tab seeds its form from this.
+    $settings = [
+        'title'          => $celebration->title,
+        'celebrantName'  => $celebration->celebrant_name,
+        'type'           => $celebration->celebration_type,
+        'description'    => $celebration->description ?? '',
+        'venue'          => $celebration->venue ?? '',
+        'eventDate'      => $celebration->event_date?->format('Y-m-d') ?? '',
+        'startDate'      => $celebration->start_date?->format('Y-m-d') ?? '',
+        'endDate'        => $celebration->end_date?->format('Y-m-d') ?? '',
+        'isPublic'       => (bool) $celebration->is_public,
+        'status'         => $celebration->status,
+        'saveUrl'        => $isOwner ? route('celebrant.update', $celebration->slug) : '',
+        'csrfToken'      => csrf_token(),
+    ];
 @endphp
+
 @if($_tpl || $_initBg || $_initText)
 <style>
     .celebration-page {
-        @if($_initBg)                    --tpl-bg:           {{ $_initBg }};                   @endif
-        @if($_initText)                  --tpl-text:         {{ $_initText }};                 @endif
-        @if($_tpl?->card_bg)             --tpl-card:         {{ $_tpl->card_bg }};             @endif
-        @if($_tpl?->text_secondary)      --tpl-text-muted:   {{ $_tpl->text_secondary }};      @endif
-        @if($_tpl?->accent_color)        --tpl-accent:       {{ $_tpl->accent_color }};        @endif
-        @if($_tpl?->photo_border_color)  --tpl-border-color: {{ $_tpl->photo_border_color }};  @endif
-        @if($_tpl?->photo_border_style)  --tpl-border-style: {{ $_tpl->photo_border_style }};  @endif
-        @if($_tpl)                       --tpl-border-width: {{ $_tpl->photo_border_style === 'none' ? '0px' : $_tpl->photo_border_width . 'px' }}; @endif
+        @if($_initBg)                   --tpl-bg:           {{ $_initBg }};   @endif
+        @if($_initText)                 --tpl-text:         {{ $_initText }}; @endif
+        @if($_tpl?->card_bg)            --tpl-card:         {{ $_tpl->card_bg }}; @endif
+        @if($_tpl?->text_secondary)     --tpl-text-muted:   {{ $_tpl->text_secondary }}; @endif
+        @if($_tpl?->accent_color)       --tpl-accent:       {{ $_tpl->accent_color }}; @endif
+        @if($_tpl?->photo_border_color) --tpl-border-color: {{ $_tpl->photo_border_color }}; @endif
+        @if($_tpl?->photo_border_style) --tpl-border-style: {{ $_tpl->photo_border_style }}; @endif
+        @if($_tpl) --tpl-border-width: {{ $_tpl->photo_border_style === 'none' ? '0px' : $_tpl->photo_border_width.'px' }}; @endif
     }
 </style>
 @endif
-@php
-$templateData    = $templates->map(fn($t) => $t->only([
-    'id', 'name', 'slug', 'icon', 'description',
-    'page_bg', 'card_bg', 'text_primary', 'text_secondary', 'accent_color',
-    'photo_border_style', 'photo_border_color', 'photo_border_width', 'wishes_layout',
-]))->values();
 
-$customizerConfig = [
-    'templates'         => $templateData,
-    'currentTemplateId' => $celebration->template_id,
-    'customBg'          => $celebration->custom_bg  ?? '',
-    'customText'        => $celebration->custom_text ?? '',
-    'applyUrl'          => $isOwner ? route('celebration.template.apply', $celebration) : '',
-    'csrfToken'         => csrf_token(),
-];
-@endphp
-{{-- ── Root Alpine scope: applies template CSS vars + owns customizer state ── --}}
 <div
+    class="ds celebration-page"
     x-data="celebrationCustomizer({{ Js::from($customizerConfig) }})"
     :style="cssVars"
-    class="min-h-screen celebration-page"
 >
+{{--
+    @js, not @json — @json writes raw double quotes, which close this attribute
+    at the first one and truncate the expression to "videoReelsPlayer([{".
+    That left the whole component undefined, so no video ever opened.
+--}}
+<div class="cel-shell" x-data="videoReelsPlayer(@js($videoWishes))">
 
-    {{-- ── TOP BAR ──────────────────────────────────────────────────────────── --}}
-    <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-100">
-        <div class="flex items-center justify-between px-4 py-3 max-w-screen-2xl mx-auto">
+    {{-- ══ LEFT — the celebrant's photos ══════════════════════════════ --}}
+    <div class="cel-visual celebration-cover"
+         x-data="{
+            currentFrame: {{ $celebration->frame ? Js::from($celebration->frame->only(['id','type','css_content','svg_content'])) : 'null' }},
+         }"
+         :style="currentFrame && currentFrame.type === 'css' ? currentFrame.css_content : ''">
 
-            {{-- Left: back + title --}}
-            <div class="flex items-center gap-3 min-w-0">
-                <a href="{{ url()->previous() === url()->current() ? route('home') : url()->previous() }}"
-                   class="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-                    <i class="mdi mdi-arrow-left text-lg"></i>
-                </a>
-                <span class="text-sm font-semibold text-gray-700 truncate hidden sm:block">
-                    {{ $celebration->title }}
+        @if(count($coverPhotos) > 1)
+            <div class="swiper cover-swiper">
+                <div class="swiper-wrapper">
+                    @foreach($coverPhotos as $photo)
+                        <div class="swiper-slide">
+                            <img src="{{ asset('storage/'.$photo) }}" alt="">
+                        </div>
+                    @endforeach
+                </div>
+                <div class="swiper-pagination"></div>
+            </div>
+        @elseif(count($coverPhotos) === 1)
+            <img src="{{ asset('storage/'.$coverPhotos[0]) }}" alt="">
+        @else
+            <div class="w-full h-full flex items-center justify-center" style="background: var(--ink-800)">
+                <i class="mdi mdi-image-outline" style="font-size:3rem;color:rgba(255,255,255,.22)"></i>
+            </div>
+        @endif
+
+        {{-- SVG frame overlay --}}
+        <template x-if="currentFrame && currentFrame.type === 'svg'">
+            <div x-html="currentFrame.svg_content" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:4"></div>
+        </template>
+
+        <div class="cel-veil"></div>
+
+        {{-- Controls --}}
+        <div class="cel-float is-left">
+            <a href="{{ route('home') }}" class="cel-fbtn" aria-label="Home">
+                <i class="mdi mdi-arrow-left"></i>
+            </a>
+        </div>
+
+        <div class="cel-float is-right">
+            @if($countdown)
+                <span class="cel-chip">
+                    <i class="mdi mdi-clock-outline"></i>
+                    {{ $countdown['days'] }}d {{ $countdown['hours'] }}h
                 </span>
+            @endif
+            <button type="button" class="cel-fbtn" aria-label="Copy link"
+                    onclick="navigator.clipboard.writeText(window.location.href); window.showAlert?.('Link copied','success')">
+                <i class="mdi mdi-share-variant-outline"></i>
+            </button>
+            {{-- mobile only: gifting is a tab away on desktop --}}
+            <button type="button" class="cel-fbtn is-accent cel-gift-float" aria-label="Send a gift"
+                    x-on:click="$dispatch('open-modal','show-gifts')">
+                <i class="mdi mdi-gift-outline"></i>
+            </button>
+        </div>
+
+        {{-- Identity --}}
+        <div class="cel-id">
+            <span class="cel-eyebrow">
+                <i class="mdi mdi-party-popper"></i>
+                {{ Str::headline($celebration->celebration_type ?? 'Celebration') }}
+            </span>
+            <h1 class="cel-title">{{ $celebration->title }}</h1>
+            <div class="cel-sub">
+                @if($celebration->celebrant_name)
+                    <span><i class="mdi mdi-account-heart-outline"></i>{{ $celebration->celebrant_name }}</span>
+                @endif
+                @if($eventDate)
+                    <span><i class="mdi mdi-calendar-blank-outline"></i>{{ $eventDate->format('j M Y') }}</span>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- ══ RIGHT — tabs ═══════════════════════════════════════════════ --}}
+    <div class="cel-panel celebration-card" x-data="{ tab: 'wishes' }">
+
+        <div class="cel-tabs celebration-card" role="tablist">
+            <button class="cel-tab" role="tab" :aria-selected="tab === 'wishes'"  @click="tab = 'wishes'">
+                <i class="mdi mdi-message-text-outline"></i> Wishes
+            </button>
+            <button class="cel-tab" role="tab" :aria-selected="tab === 'registry'" @click="tab = 'registry'">
+                <i class="mdi mdi-format-list-checks"></i> Registry
+            </button>
+            <button class="cel-tab" role="tab" :aria-selected="tab === 'gifts'"   @click="tab = 'gifts'">
+                <i class="mdi mdi-gift-outline"></i> Gifts
+            </button>
+            @if($isOwner)
+                <button class="cel-tab" role="tab" :aria-selected="tab === 'settings'"  @click="tab = 'settings'">
+                    <i class="mdi mdi-tune-variant"></i> Settings
+                </button>
+                <button class="cel-tab" role="tab" :aria-selected="tab === 'photobook'" @click="tab = 'photobook'">
+                    <i class="mdi mdi-book-open-page-variant-outline"></i> Photobook
+                </button>
+            @endif
+        </div>
+
+        <div class="cel-body">
+
+            {{-- ── WISHES ──────────────────────────────────────────── --}}
+            <div class="cel-pad" x-show="tab === 'wishes'">
+                @unless($isOwner)
+                    <div id="composer" x-data="wishForm()" style="margin-bottom:1.5rem">
+                        <div class="composer">
+                            <div x-show="commentImagePreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
+                                <img :src="commentImagePreview" style="height:70px;border:1px solid var(--line)">
+                                <button type="button" @click="commentImage = null; commentImagePreview = ''"
+                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
+                            </div>
+
+                            <div x-show="commentVideoPreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
+                                <video :src="commentVideoPreview" controls style="height:100px;border:1px solid var(--line)"></video>
+                                <button type="button" @click="clearVideo()"
+                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
+                            </div>
+
+                            <form @submit.prevent="handleSubmit">
+                                <textarea x-model="message" rows="2"
+                                          placeholder="Write {{ $celebration->celebrant_name }} a message…"></textarea>
+                                <div class="composer-tools">
+                                    <button type="button" class="ibtn ibtn-bare" @click="openVideoRecorder()" aria-label="Record video">
+                                        <i class="mdi mdi-video-outline"></i>
+                                    </button>
+                                    <label for="imageUpload" class="ibtn ibtn-bare cursor-pointer" aria-label="Add photo">
+                                        <i class="mdi mdi-image-outline"></i>
+                                    </label>
+                                    <input hidden type="file" id="imageUpload" accept="image/*" @change="handleCommentImageUpload($event)">
+                                    <button type="submit" :disabled="loading" class="btn btn-primary btn-sm" style="margin-left:auto">
+                                        <i class="mdi" :class="loading ? 'mdi-loading mdi-spin' : 'mdi-send'"></i>
+                                        <span x-text="loading ? 'Sending…' : 'Send'"></span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        @include('celebrations.partials.guest-modal')
+                        @include('celebrations.partials.recorder-modal')
+                    </div>
+                @endunless
+
+                @forelse($celebration->comments as $comment)
+                    @php
+                        $commentAuthor = $comment->user
+                            ? ($comment->user->name ?? $comment->user->first_name.' '.$comment->user->last_name)
+                            : ($comment->guest_name ?? 'Anonymous');
+                        $sharePayload = [
+                            'celebrantPhoto'   => $coverPhotoUrl,
+                            'commentText'      => $comment->message ?? '',
+                            'authorName'       => $commentAuthor,
+                            'celebrationTitle' => $celebration->title,
+                        ];
+                        $mediaSrc = $comment->media_url
+                            ? (Str::startsWith($comment->media_url, ['http://','https://']) ? $comment->media_url : asset('storage/'.$comment->media_url))
+                            : null;
+                    @endphp
+                    <article class="msg">
+                        <div class="avatar">
+                            @if(optional($comment->user)->avatar)
+                                <img src="{{ $comment->user->avatar }}" alt="">
+                            @else
+                                {{ Str::substr($commentAuthor, 0, 2) }}
+                            @endif
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="msg-name celebration-title">{{ $commentAuthor }}</span>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <span class="msg-time">{{ $comment->created_at->diffForHumans() }}</span>
+                                    @if($comment->message)
+                                        <button type="button" class="ibtn ibtn-bare" style="width:24px;height:24px;font-size:.85rem"
+                                                @click="window.shareComment($el, {...{{ Js::from($sharePayload) }}, accentColor: activeTemplate?.accent_color ?? '#7c3aed'})"
+                                                aria-label="Share this message">
+                                            <i class="mdi mdi-share-variant-outline"></i>
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+
+                            @if($comment->message)
+                                <p class="msg-text celebration-title">{{ $comment->message }}</p>
+                            @endif
+
+                            @if($mediaSrc)
+                                @if($comment->media_type === 'local-image')
+                                    <div class="msg-media"><img src="{{ $mediaSrc }}" alt=""></div>
+                                @elseif($comment->media_type === 'video')
+                                    <div class="vid-tile mt-3 group"
+                                         x-data="{ playing: false }"
+                                         x-init="
+                                            const io = new IntersectionObserver((es) => es.forEach(e => {
+                                                const v = e.target.querySelector('video');
+                                                if (!v) return;
+                                                if (e.isIntersecting) v.play().then(() => playing = true).catch(() => {});
+                                                else { v.pause(); playing = false; }
+                                            }), { threshold: 0.5 });
+                                            io.observe($el);
+                                         "
+                                         @click="openReel({{ $comment->id }})">
+                                        {{--
+                                            No type= — recordings are webm and
+                                            uploads are mp4; declaring the wrong
+                                            one makes strict browsers skip the
+                                            source and show a black tile.
+                                            Muted is deliberate: this is a silent
+                                            preview, and browsers only autoplay
+                                            muted video. Sound comes from the
+                                            reel player when you tap it.
+                                        --}}
+                                        <video muted loop playsinline @playing="playing = true" @pause="playing = false">
+                                            <source src="{{ $mediaSrc }}">
+                                        </video>
+                                        <div class="absolute inset-0 flex items-end p-2 text-white"
+                                             style="background: linear-gradient(to top, rgba(0,0,0,.65), transparent 55%)">
+                                            <i class="mdi mdi-play-circle" style="font-size:1.5rem"></i>
+                                        </div>
+                                    </div>
+                                @elseif($comment->media_type === 'audio')
+                                    <audio controls class="w-full mt-3"><source src="{{ $mediaSrc }}" type="audio/mpeg"></audio>
+                                @endif
+                            @endif
+                        </div>
+                    </article>
+                @empty
+                    <div class="cel-empty">
+                        <i class="mdi mdi-message-text-outline"></i>
+                        <p>{{ $isOwner ? 'Share your link to start receiving wishes.' : 'Be the first to leave a message.' }}</p>
+                    </div>
+                @endforelse
+
+                @include('celebrations.partials.reels-modal')
             </div>
 
-            {{-- Right: actions --}}
-            <div class="flex items-center gap-2 shrink-0">
+            {{-- ── REGISTRY ────────────────────────────────────────── --}}
+            <div class="cel-pad" x-show="tab === 'registry'" x-cloak>
+                @if($wishes->isNotEmpty())
+                    <div class="reg-grid" x-data="registryManager()">
+                        @foreach($wishes as $wish)
+                            @php
+                                $target  = (float) ($wish->displayTarget ?? 0);
+                                $current = (float) ($wish->displayCurrent ?? 0);
+                                $funded  = $target > 0 && $current >= $target;
+                            @endphp
+                            <div class="reg-wrap" x-show="!removed.includes({{ $wish->id }})">
+                            @if($isOwner)
+                                <button type="button" class="reg-del" aria-label="Remove {{ $wish->name }}"
+                                        @click.stop="remove({{ $wish->id }}, '{{ addslashes($wish->name) }}')">
+                                    <i class="mdi mdi-close"></i>
+                                </button>
+                            @endif
+                            <button type="button" class="reg-cell @if($funded) is-done @endif"
+                                style="width:100%"
+                                title="{{ $wish->name }}"
+                                @click="$dispatch('open-wish', {
+                                    id:                {{ $wish->id }},
+                                    name:              '{{ addslashes($wish->name) }}',
+                                    description:       '{{ addslashes($wish->description ?? '') }}',
+                                    image:             '{{ $wish->wish_image ? asset('storage/'.$wish->wish_image) : '' }}',
+                                    target:            {{ $target }},
+                                    current:           {{ $current }},
+                                    allowPartial:      {{ $wish->allow_partial_contribution ? 'true' : 'false' }},
+                                    status:            '{{ $wish->status }}',
+                                    contributionCount: {{ (int) $wish->contribution_count }},
+                                })">
+                                @if($funded)<span class="reg-flag">Got it</span>@endif
+                                <span class="reg-img">
+                                    @if($wish->wish_image)
+                                        <img src="{{ asset('storage/'.$wish->wish_image) }}" alt="">
+                                    @else
+                                        <i class="mdi mdi-gift-outline"></i>
+                                    @endif
+                                </span>
+                                <span class="reg-name celebration-title">{{ $wish->name }}</span>
+                                <span class="reg-amt">
+                                    @if($target > 0)
+                                        {{ $visitorSymbol }}{{ number_format($target, 0) }}
+                                    @else
+                                        Any amount
+                                    @endif
+                                </span>
+                            </button>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="cel-empty">
+                        <i class="mdi mdi-format-list-checks"></i>
+                        <p>{{ $isOwner ? 'Add the things you would love to receive.' : 'Nothing on the registry yet.' }}</p>
+                    </div>
+                @endif
 
-                {{-- Share (everyone) --}}
-                <button
-                    type="button"
-                    onclick="navigator.clipboard.writeText(window.location.href)"
-                    title="Copy link"
-                    class="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                >
-                    <i class="mdi mdi-share-variant-outline text-lg"></i>
+                @if($isOwner)
+                    <div x-data="wishlistForm()" class="cel-sec" style="border-top:1px solid var(--line);padding-top:1.5rem">
+                        <p class="cel-sec-t">Add an item</p>
+
+                        <div x-show="successMessage" x-cloak class="badge badge-ok" style="margin-bottom:0.75rem">
+                            <i class="mdi mdi-check-circle-outline"></i> <span x-text="successMessage"></span>
+                        </div>
+                        <div x-show="errorMessage" x-cloak class="badge badge-danger" style="margin-bottom:0.75rem">
+                            <i class="mdi mdi-alert-circle-outline"></i> <span x-text="errorMessage"></span>
+                        </div>
+
+                        <form @submit.prevent="submitForm" enctype="multipart/form-data" class="space-y-3">
+                            <template x-for="(wish, index) in wishes" :key="index">
+                                <div class="flex gap-2.5">
+                                    <label class="wl-thumb cursor-pointer" style="border-style:dashed">
+                                        <template x-if="wish.preview"><img :src="wish.preview" alt=""></template>
+                                        <template x-if="!wish.preview"><i class="mdi mdi-image-plus-outline" style="color:var(--muted-2)"></i></template>
+                                        <input type="file" hidden accept="image/*" @change="handleImage($event, index)">
+                                    </label>
+                                    <div class="flex-1 space-y-2 min-w-0">
+                                        <input type="text" class="input" x-model="wish.name" placeholder="e.g. Nike Air Max">
+                                        <div class="flex gap-2">
+                                            <div class="input-prefix flex-1">
+                                                <span>{{ $visitorSymbol }}</span>
+                                                <input type="number" class="input" x-model="wish.amount" placeholder="Cost">
+                                            </div>
+                                            <button type="button" class="ibtn" x-show="wishes.length > 1" @click="removeWish(index)" aria-label="Remove">
+                                                <i class="mdi mdi-trash-can-outline"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div class="flex gap-2 pt-1">
+                                <button type="button" class="btn btn-outline btn-sm" @click="addWish">
+                                    <i class="mdi mdi-plus"></i> Add
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-sm" :disabled="loading">
+                                    <i class="mdi" :class="loading ? 'mdi-loading mdi-spin' : 'mdi-content-save-outline'"></i>
+                                    <span x-text="loading ? 'Saving…' : 'Save'"></span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
+            </div>
+
+            {{-- ── GIFTS ───────────────────────────────────────────── --}}
+            <div class="cel-pad" x-show="tab === 'gifts'" x-cloak
+                 x-data="{ showSupporters: false }">
+                <p class="cel-sec-t">Raised so far</p>
+                <p class="cel-raised">{{ $visitorSymbol }}{{ number_format($totalGifts, 0) }}</p>
+
+                @if ($supporters->isEmpty())
+                    <p class="wl-amt">Be the first to give</p>
+                @else
+                    @php $lead = $supporters->first(); $others = $supporters->count() - 1; @endphp
+                    <button type="button" class="sup-line" style="margin-top:0.4rem"
+                            @click="showSupporters = !showSupporters" :aria-expanded="showSupporters">
+                        <span>
+                            From <strong>{{ Str::before($lead->name, ' ') }}</strong>@if ($others > 0)
+                                and {{ $others }} other {{ Str::plural('supporter', $others) }}@endif
+                        </span>
+                        <i class="mdi" :class="showSupporters ? 'mdi-chevron-up' : 'mdi-chevron-down'"></i>
+                    </button>
+
+                    <div class="sup-list" x-show="showSupporters" x-cloak x-transition.opacity>
+                        @foreach ($supporters as $supporter)
+                            <div class="sup-item">
+                                <span class="sup-av">{{ Str::substr($supporter->name, 0, 2) }}</span>
+                                <span class="min-w-0">
+                                    <span class="sup-name celebration-title block truncate">{{ $supporter->name }}</span>
+                                    @if ($supporter->count > 1)
+                                        <span class="wl-amt" style="margin-top:0">{{ $supporter->count }} gifts</span>
+                                    @endif
+                                </span>
+                                <span class="sup-amt celebration-title">
+                                    {{ $visitorSymbol }}{{ number_format($supporter->total, 0) }}
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <button type="button" class="btn btn-primary btn-block" style="margin-top:1.25rem"
+                        x-on:click="$dispatch('open-modal','show-gifts')">
+                    <i class="mdi mdi-gift-outline"></i> Send a gift
                 </button>
 
-                {{-- Countdown badge (owner or guest, only while event is upcoming) --}}
-                @if($countdown)
-                    <div class="hidden sm:flex items-center gap-1 bg-gray-100 rounded-xl px-2.5 py-1.5 text-xs font-medium text-gray-600">
-                        <i class="mdi mdi-clock-outline text-sm"></i>
-                        {{ str_pad($countdown['days'], 2, '0', STR_PAD_LEFT) }}d
-                        {{ str_pad($countdown['hours'], 2, '0', STR_PAD_LEFT) }}h
-                        {{ str_pad($countdown['mins'], 2, '0', STR_PAD_LEFT) }}m
-                    </div>
-                @endif
-
-                {{-- Customize — owner only --}}
-                @if($isOwner)
-                    <button
-                        type="button"
-                        @click="customizerOpen = true"
-                        title="Customise page"
-                        class="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                        :class="customizerOpen ? 'bg-gray-100 text-gray-700' : ''"
-                    >
-                        <i class="mdi mdi-tune-variant text-lg"></i>
-                    </button>
-                @endif
-
-            </div>
-        </div>
-    </header>
-
-    {{-- ── MAIN GRID ─────────────────────────────────────────────────────────── --}}
-    <div class="grid lg:grid-cols-2 min-h-[calc(100vh-53px)]">
-
-        {{-- ── LEFT: Cover photo + sidebar ──────────────────────────────────── --}}
-        <div class="relative flex items-start justify-center p-5">
-
-            <div class="celebration-cover relative w-full max-w-lg h-[500px] rounded-3xl overflow-hidden border bg-white">
-
-                @if($celebration->cover_photo)
-                    <img
-                        src="{{ asset('storage/' . $celebration->cover_photo) }}"
-                        class="w-full h-full object-cover"
-                        alt="Celebration cover"
-                    >
-                    @if($isOwner)
-                        <label for="coverUpload" class="absolute inset-0 flex items-center justify-center cursor-pointer bg-black/0 hover:bg-black/25 transition group">
-                            <span class="flex items-center gap-2 bg-black/50 text-white text-xs font-medium px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition">
-                                <i class="mdi mdi-camera-outline text-sm"></i> Update photo
-                            </span>
-                        </label>
-                        <input type="file" id="coverUpload" class="hidden" accept="image/*">
-                    @endif
-
-                @elseif($isOwner)
-                    <label for="coverUpload" class="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition group">
-                        <i class="mdi mdi-camera-plus-outline text-4xl text-gray-300 group-hover:text-gray-400 transition"></i>
-                        <p class="mt-2 text-sm text-gray-400">Add cover photo</p>
-                    </label>
-                    <input type="file" id="coverUpload" class="hidden" accept="image/*">
-
-                @else
-                    <div class="w-full h-full flex items-center justify-center bg-gray-50">
-                        <i class="mdi mdi-image-outline text-6xl text-gray-200"></i>
-                    </div>
-                @endif
-
-                {{-- Sidebar: received gifts + suggestions --}}
-                {{-- Data pre-computed in CelebrationController::show() --}}
-                <div class="absolute right-3 top-4 flex flex-col gap-2.5">
-                    @forelse($sidebarItems as $item)
-                        <div class="relative group">
-                            <button
-                                @click="$dispatch('open-gift-detail', {
-                                    id:       {{ $item->gift->id }},
-                                    name:     '{{ addslashes($item->gift->gift_name) }}',
-                                    image:    '{{ asset('storage/' . $item->gift->gift_image_url) }}',
-                                    price:    {{ round($item->displayTotal, 2) }},
-                                    priceUsd: {{ (float) $item->gift->gift_price }},
-                                })"
-                                class="relative w-11 h-11 rounded-full bg-white/95 border border-white/80 flex items-center justify-center hover:scale-105 transition overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
-                            >
-                                @if($item->gift?->gift_image_url)
-                                    <img src="{{ asset('storage/' . $item->gift->gift_image_url) }}" alt="{{ $item->gift->gift_name }}" width="50">
-                                @else
-                                    <i class="mdi mdi-gift-outline text-base text-gray-400"></i>
-                                @endif
-                                @if($item->received)
-                                    <span class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-white"></span>
-                                @endif
-                            </button>
-
-                            <div class="absolute right-12 top-1/2 -translate-y-1/2 z-20 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none min-w-[110px]">
-                                <p class="font-medium truncate max-w-[130px]">{{ $item->gift?->gift_name ?? 'Gift' }}</p>
-                                @if($item->received)
-                                    <p class="text-emerald-400 mt-0.5">
-                                        {{ $visitorSymbol }}{{ number_format($item->displayTotal, 2) }}
-                                        @if($item->count > 1)<span class="text-gray-400"> ×{{ $item->count }}</span>@endif
-                                    </p>
-                                @else
-                                    <p class="text-gray-400 mt-0.5">Not received yet</p>
-                                @endif
-                            </div>
-                        </div>
-                    @empty
-                        <div class="w-11 h-11 rounded-xl bg-white/60 border border-white/50 flex items-center justify-center">
-                            <i class="mdi mdi-gift-outline text-base text-gray-300"></i>
-                        </div>
-                    @endforelse
-                </div>
-
-            </div>
-        </div>
-
-        {{-- ── RIGHT: Info + content ──────────────────────────────────────────── --}}
-        <div class="flex flex-col lg:h-[calc(100vh-53px)]">
-
-            {{-- Scrollable content area --}}
-            <div class="flex-1 overflow-y-auto p-6 lg:p-12">
-
-                {{-- Header --}}
-                <div>
-                    <h1 class="celebration-title text-4xl lg:text-5xl font-black text-gray-900 leading-tight">
-                        {{ $celebration->title }}
-                    </h1>
-                    <p class="celebration-text-muted mt-3 text-sm text-gray-500 leading-relaxed max-w-xl">
-                        {{ $celebration->description ?? 'Celebrate this special moment with love, gifts and wishes from family and friends around the world.' }}
-                    </p>
-                </div>
-
-                {{-- ── Wishlist ────────────────────────────────────────────────── --}}
-                <div class="mt-8">
-
-                    <div class="flex items-center justify-between mb-1">
-                        <div>
-                            <h2 class="celebration-title text-sm font-semibold text-gray-800">{{ $celebration->celebrant_name }}'s Wishlist</h2>
-                            <p class="celebration-text-muted text-xs text-gray-400 mt-0.5">Help make these wishes come true</p>
-                        </div>
-                        <span class="celebration-text-muted text-xs text-gray-400 bg-gray-100 rounded-full px-2.5 py-1">
-                            {{ $wishes->count() }} {{ Str::plural('wish', $wishes->count()) }}
-                        </span>
-                    </div>
-
-                    @if($wishes->isNotEmpty())
-                        {{-- Layout toggles between horizontal scroll and grid based on template --}}
-                        <div
-                            class="mt-3 pb-2"
-                            :class="wishesLayout === 'grid'
-                                ? 'grid grid-cols-3 gap-3'
-                                : 'flex gap-3 overflow-x-auto'"
-                        >
-                            @foreach($wishes as $wish)
-                                {{-- Clickable wish card — dispatches 'open-wish' for the wishes-modal component --}}
-                                <button
-                                    type="button"
-                                    @click="$dispatch('open-wish', {
-                                        id:                {{ $wish->id }},
-                                        name:              '{{ addslashes($wish->name) }}',
-                                        description:       '{{ addslashes($wish->description ?? '') }}',
-                                        image:             '{{ $wish->wish_image ? asset('storage/'.$wish->wish_image) : '' }}',
-                                        target:            {{ (float) ($wish->displayTarget ?? 0) }},
-                                        current:           {{ (float) ($wish->displayCurrent ?? 0) }},
-                                        allowPartial:      {{ $wish->allow_partial_contribution ? 'true' : 'false' }},
-                                        status:            '{{ $wish->status }}',
-                                        contributionCount: {{ (int) $wish->contribution_count }},
-                                    })"
-                                    class="celebration-card min-w-[50px] bg-white rounded-2xl p-3 border border-gray-100 shrink-0 text-left hover:border-violet-200 hover:shadow-sm transition group focus:outline-none focus:ring-2 focus:ring-violet-300"
-                                >
-                                    <div class="relative w-10 h-10 mx-auto rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
-                                        @if($wish->wish_image)
-                                            <img src="{{ asset('storage/' . $wish->wish_image) }}" class="w-full h-full object-cover" alt="{{ $wish->name }}">
-                                        @else
-                                            <i class="mdi mdi-gift-outline text-2xl text-gray-200 group-hover:text-violet-300 transition"></i>
-                                        @endif
-                                        {{-- Progress ring indicator --}}
-                                        @if($wish->target_amount && $wish->displayTarget > 0)
-                                            @php
-                                                $pct = min(100, round(($wish->displayCurrent / $wish->displayTarget) * 100));
-                                            @endphp
-                                            @if($pct > 0)
-                                                <div class="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-violet-500 flex items-center justify-center">
-                                                    <i class="mdi mdi-check text-white text-[8px]" style="font-size:7px"></i>
-                                                </div>
-                                            @endif
-                                        @endif
-                                    </div>
-                                    <p class="celebration-title mt-2 text-xs font-semibold text-gray-800 text-center line-clamp-1">{{ $wish->name }}</p>
-                                    @if($wish->target_amount && $wish->displayTarget > 0)
-                                        {{-- Mini progress bar --}}
-                                        @php $pct = min(100, round(($wish->displayCurrent / $wish->displayTarget) * 100)); @endphp
-                                        <div class="mt-1.5 w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                                            <div class="h-full rounded-full bg-gradient-to-r from-violet-400 to-rose-400" style="width: {{ $pct }}%"></div>
-                                        </div>
-                                        <p class="celebration-text-muted text-[10px] text-gray-400 text-center mt-0.5">
-                                            {{ $visitorSymbol }}{{ number_format($wish->displayCurrent, 0) }}
-                                            <span class="text-gray-300">/</span>
-                                            {{ number_format($wish->displayTarget, 0) }}
-                                        </p>
+                <div class="cel-sec">
+                    <p class="cel-sec-t">Received</p>
+                    @if($sidebarItems->isNotEmpty())
+                        <div class="gift-grid">
+                            @foreach($sidebarItems as $item)
+                                <button type="button" class="gift-cell @if($item->received) is-got @endif"
+                                    title="{{ $item->gift?->gift_name ?? 'Gift' }}"
+                                    @click="$dispatch('open-gift-detail', {
+                                        id:       {{ $item->gift->id }},
+                                        name:     '{{ addslashes($item->gift->gift_name) }}',
+                                        image:    '{{ asset('storage/'.$item->gift->gift_image_url) }}',
+                                        price:    {{ round($item->displayTotal, 2) }},
+                                        priceUsd: {{ (float) $item->gift->gift_price }},
+                                    })">
+                                    @if($item->gift?->gift_image_url)
+                                        <img src="{{ asset('storage/'.$item->gift->gift_image_url) }}" alt="">
+                                    @else
+                                        <i class="mdi mdi-gift-outline" style="color: var(--muted-2)"></i>
                                     @endif
+                                    @if($item->count > 1)<span class="gift-n">{{ $item->count }}</span>@endif
                                 </button>
                             @endforeach
                         </div>
-                    @elseif(!$isOwner)
-                        <p class="celebration-text-muted text-sm text-gray-400 mt-3 py-2">No wishes added yet.</p>
+                    @else
+                        <div class="cel-empty"><i class="mdi mdi-gift-outline"></i><p>No gifts yet.</p></div>
                     @endif
-
-                    {{-- Owner: add/edit wishlist --}}
-                    @if($isOwner)
-                        <div x-data="wishlistForm()" class="mt-5 space-y-3">
-
-                            <div x-show="successMessage" x-transition class="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-100 px-4 py-3 rounded-xl">
-                                <i class="mdi mdi-check-circle-outline text-base"></i>
-                                <span x-text="successMessage"></span>
-                            </div>
-
-                            <div x-show="errorMessage" x-transition class="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-xl">
-                                <i class="mdi mdi-alert-circle-outline text-base"></i>
-                                <span x-text="errorMessage"></span>
-                            </div>
-
-                            <form @submit.prevent="submitForm" enctype="multipart/form-data" class="space-y-3">
-
-                                <template x-for="(wish, index) in wishes" :key="index">
-                                    <div class="celebration-card bg-white p-4 rounded-2xl border border-gray-100">
-                                        <div class="flex gap-3">
-
-                                            <label class="cursor-pointer w-14 h-14 rounded-xl border border-dashed border-gray-200 hover:border-rose-300 flex items-center justify-center overflow-hidden shrink-0 transition">
-                                                <template x-if="wish.preview">
-                                                    <img :src="wish.preview" class="w-full h-full object-cover">
-                                                </template>
-                                                <template x-if="!wish.preview">
-                                                    <i class="mdi mdi-image-plus-outline text-xl text-gray-300"></i>
-                                                </template>
-                                                <input type="file" hidden accept="image/*" @change="handleImage($event, index)">
-                                            </label>
-
-                                            <div class="flex-1 space-y-2">
-                                                <input
-                                                    type="text"
-                                                    x-model="wish.name"
-                                                    placeholder="e.g. Nike Air Max"
-                                                    class="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent focus:bg-white"
-                                                >
-                                                <div class="flex gap-2">
-                                                    <div class="flex items-center flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3">
-                                                        <span class="text-gray-400 text-sm">{{ $visitorSymbol }}</span>
-                                                        <input
-                                                            type="number"
-                                                            x-model="wish.amount"
-                                                            placeholder="Cost"
-                                                            class="w-full bg-transparent border-0 focus:ring-0 py-2.5 text-sm pl-1"
-                                                        >
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        x-show="wishes.length > 1"
-                                                        @click="removeWish(index)"
-                                                        class="px-3 rounded-xl border border-gray-100 text-gray-400 hover:border-red-200 hover:text-red-400 transition"
-                                                    >
-                                                        <i class="mdi mdi-trash-can-outline text-lg"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                        </div>
-                                    </div>
-                                </template>
-
-                                <div class="flex gap-2">
-                                    <button type="button" @click="addWish" class="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50 transition flex items-center gap-1.5">
-                                        <i class="mdi mdi-plus text-base"></i> Add Another
-                                    </button>
-                                    <button type="submit" :disabled="loading" class="px-5 py-2.5 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition disabled:opacity-50 flex items-center gap-1.5">
-                                        <span x-show="!loading" class="flex items-center gap-1.5">
-                                            <i class="mdi mdi-content-save-outline text-base"></i> Save Wishlist
-                                        </span>
-                                        <span x-show="loading" class="flex items-center gap-1.5">
-                                            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                                            </svg>
-                                            Saving…
-                                        </span>
-                                    </button>
-                                </div>
-
-                            </form>
-
-                            {{-- wishlistForm() is defined in resources/js/modules/wishlistForm.js --}}
-                        </div>
-                    @endif
-
                 </div>
-
-                {{-- ── Messages ──────────────────────────────────────────────────── --}}
-                <div class="mt-10 flex-1">
-
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="celebration-text-muted text-xs font-semibold text-gray-400 uppercase tracking-widest">Messages</h3>
-                        @if($celebration->comments->count())
-                        <button
-                            type="button"
-                            @click="$dispatch('open-photobook')"
-                            class="flex items-center gap-1.5 text-xs text-violet-600 font-semibold hover:text-violet-800 transition"
-                        >
-                            <i class="mdi mdi-book-open-page-variant-outline text-base"></i>
-                            Photobook
-                        </button>
-                        @endif
-                    </div>
-
-                    @php
-                    $coverPhotoUrl = $celebration->cover_photo
-                        ? asset('storage/'.$celebration->cover_photo)
-                        : ($celebration->celebrant_photo ? asset('storage/'.$celebration->celebrant_photo) : '');
-                    @endphp
-
-                    <div class="space-y-4">
-                        @forelse($celebration->comments as $comment)
-                            @php
-                            $commentAuthor = $comment->user
-                                ? ($comment->user->name ?? $comment->user->first_name.' '.$comment->user->last_name)
-                                : ($comment->guest_name ?? 'Anonymous');
-                            $sharePayload = [
-                                'celebrantPhoto'   => $coverPhotoUrl,
-                                'commentText'      => $comment->message ?? '',
-                                'authorName'       => $commentAuthor,
-                                'celebrationTitle' => $celebration->title,
-                            ];
-                            @endphp
-                            <div class="flex gap-3">
-                                <div class="w-9 h-9 rounded-full bg-gray-100 border border-gray-100 overflow-hidden flex items-center justify-center shrink-0">
-                                    @if(optional($comment->user)->avatar)
-                                        <img src="{{ $comment->user->avatar }}" class="w-full h-full object-cover" alt="">
-                                    @else
-                                        <i class="mdi mdi-account text-gray-400 text-lg"></i>
-                                    @endif
-                                </div>
-                                <div class="celebration-card flex-1 bg-white border border-gray-100 rounded-2xl p-4">
-                                    <div class="flex items-center justify-between gap-2 mb-1.5">
-                                        <span class="celebration-title text-sm font-semibold text-gray-900">{{ $commentAuthor }}</span>
-                                        <div class="flex items-center gap-2">
-                                            <span class="celebration-text-muted text-xs text-gray-400">{{ $comment->created_at->diffForHumans() }}</span>
-                                            {{-- Share button --}}
-                                            @if($comment->message)
-                                            <button
-                                                type="button"
-                                                @click="window.shareComment($el, {...{{ Js::from($sharePayload) }}, accentColor: activeTemplate?.accent_color ?? '#F43F5E'})"
-                                                title="Share this message"
-                                                class="w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:text-rose-400 hover:bg-rose-50 transition"
-                                            >
-                                                <i class="mdi mdi-share-variant-outline text-sm"></i>
-                                            </button>
-                                            @endif
-                                        </div>
-                                    </div>
-                                    <p class="celebration-text-muted text-sm text-gray-600 leading-relaxed">{{ $comment->message }}</p>
-                                    @if($comment->media_url)
-                                        <div class="mt-3 rounded-xl overflow-hidden border border-gray-100">
-                                            @if($comment->media_type === 'local-image')
-                                                <img src="{{ asset('storage/' . $comment->media_url) }}" class="w-full max-h-48 object-cover" alt="">
-                                            @elseif($comment->media_type === 'video')
-                                                <video controls class="w-full">
-                                                    <source src="{{ asset('storage/' . $comment->media_url) }}" type="video/mp4">
-                                                </video>
-                                            @elseif($comment->media_type === 'audio')
-                                                <audio controls class="w-full p-2">
-                                                    <source src="{{ asset('storage/' . $comment->media_url) }}" type="audio/mpeg">
-                                                </audio>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        @empty
-                            <div class="py-12 flex flex-col items-center text-center">
-                                <div class="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                                    <i class="mdi mdi-message-outline text-xl text-gray-300"></i>
-                                </div>
-                                <p class="celebration-text-muted text-sm text-gray-400 max-w-xs">
-                                    {{ $isOwner
-                                        ? 'Share the celebration link to receive wishes from friends and family.'
-                                        : 'Be the first to send ' . $celebration->celebrant_name . ' a message.' }}
-                                </p>
-                            </div>
-                        @endforelse
-                    </div>
-
-                </div>
-
-            </div>{{-- end scrollable area --}}
-
-            {{-- ── Comment input (non-owner) — always visible at bottom ──────────── --}}
-            @unless($isOwner)
-                <div x-data="wishForm()" class="shrink-0 bg-white border-t border-gray-100 px-6 py-4 z-40">
-
-                    <div x-show="commentImagePreview" x-transition class="mb-3">
-                        <img :src="commentImagePreview" class="h-20 rounded-xl object-cover border border-gray-100">
-                    </div>
-
-                    <form @submit.prevent="handleSubmit" class="flex items-end gap-2">
-
-                        <textarea
-                            x-model="message"
-                            rows="1"
-                            placeholder="Wish {{ $celebration->celebrant_name }} well…"
-                            class="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent resize-none"
-                        ></textarea>
-
-                        <label for="imageUpload" class="cursor-pointer w-10 h-10 rounded-xl bg-gray-100 border border-gray-100 flex items-center justify-center hover:bg-gray-200 transition shrink-0">
-                            <i class="mdi mdi-image-outline text-lg text-gray-500"></i>
-                        </label>
-                        <input hidden type="file" id="imageUpload" accept='image/' @change="handleCommentImageUpload($event)">
-
-                        <button
-                            type="button"
-                            x-on:click="$dispatch('open-modal', 'show-gifts')"
-                            class="w-10 h-10 rounded-xl bg-gray-100 border border-gray-100 flex items-center justify-center hover:bg-rose-50 hover:border-rose-200 transition shrink-0"
-                        >
-                            <i class="mdi mdi-gift-outline text-lg text-rose-400"></i>
-                        </button>
-
-                        <button
-                            type="submit"
-                            :disabled="loading"
-                            class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition disabled:opacity-50 shrink-0"
-                        >
-                            <i class="mdi mdi-send text-base" x-show="!loading"></i>
-                            <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                            </svg>
-                        </button>
-
-                    </form>
-
-                    {{-- ── Guest action modal ───────────────────────────────────── --}}
-                    <div x-show="showGuestModal" x-transition class="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4">
-                        <div @click.away="showGuestModal=false" class="bg-white rounded-3xl w-full max-w-sm p-6">
-
-                            {{-- WELCOME --}}
-                            <template x-if="tab === 'welcome'">
-                                <div>
-                                    <div class="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
-                                        <i class="mdi mdi-send-circle-outline text-2xl text-rose-500"></i>
-                                    </div>
-                                    <h3 class="font-bold text-xl text-center">Send Your Wish</h3>
-                                    <p class="text-sm text-gray-500 text-center mt-2 mb-5">Choose how you'd like to continue.</p>
-                                    <div class="space-y-2">
-                                        <button @click="submitAnonymous" class="w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition flex items-center justify-center gap-2">
-                                            <i class="mdi mdi-incognito text-base"></i> Continue as Guest
-                                        </button>
-                                        <button @click="saveDraft(); tab='login'" class="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">Sign In</button>
-                                        <button @click="saveDraft(); tab='register'" class="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">Create Account</button>
-                                    </div>
-                                </div>
-                            </template>
-
-                            {{-- LOGIN --}}
-                            <template x-if="tab === 'login'">
-                                <div>
-                                    <button @click="tab='welcome'" class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-5">
-                                        <i class="mdi mdi-arrow-left text-base"></i> Back
-                                    </button>
-                                    <h3 class="font-bold text-xl mb-4">Welcome Back</h3>
-                                    <form @submit.prevent="login" class="space-y-3">
-                                        <input x-model="loginForm.email" type="email" placeholder="Email" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent">
-                                        <input x-model="loginForm.password" type="password" placeholder="Password" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent">
-                                        <button type="submit" class="w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition">Sign In & Send Wish</button>
-                                    </form>
-                                </div>
-                            </template>
-
-                            {{-- REGISTER --}}
-                            <template x-if="tab === 'register'">
-                                <div>
-                                    <button @click="tab='welcome'" class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-5">
-                                        <i class="mdi mdi-arrow-left text-base"></i> Back
-                                    </button>
-                                    <h3 class="font-bold text-xl mb-4">Create Account</h3>
-                                    <form @submit.prevent="register" class="space-y-3">
-                                        <input x-model="registerForm.name" type="text" placeholder="Full Name" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent">
-                                        <input x-model="registerForm.email" type="email" placeholder="Email" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent">
-                                        <input x-model="registerForm.password" type="password" placeholder="Password" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent">
-                                        <button type="submit" class="w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition">Create Account & Send Wish</button>
-                                    </form>
-                                </div>
-                            </template>
-
-                            {{-- SUCCESS --}}
-                            <template x-if="tab === 'success'">
-                                <div class="text-center">
-                                    <div class="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-4">
-                                        <i class="mdi mdi-check-circle-outline text-2xl text-green-500"></i>
-                                    </div>
-                                    <h3 class="font-bold text-xl">Wish Delivered</h3>
-                                    <p class="text-sm text-gray-500 mt-2">Your message has been added to the celebration.</p>
-                                    <div class="mt-4 bg-gray-50 border border-gray-100 rounded-xl p-4 text-left">
-                                        <p class="text-xs text-gray-400 mb-1 flex items-center gap-1.5">
-                                            <i class="mdi mdi-message-outline text-sm"></i> Your wish
-                                        </p>
-                                        <p class="text-sm text-gray-700" x-text="submittedMessage"></p>
-                                    </div>
-                                    @guest
-                                        <div class="mt-5 text-left">
-                                            <p class="text-sm font-semibold text-gray-800 mb-3">Create a free account to:</p>
-                                            <ul class="space-y-2 text-sm text-gray-500">
-                                                <li class="flex items-center gap-2"><i class="mdi mdi-check text-green-500 text-base"></i> Track celebrations</li>
-                                                <li class="flex items-center gap-2"><i class="mdi mdi-check text-green-500 text-base"></i> Save memories</li>
-                                                <li class="flex items-center gap-2"><i class="mdi mdi-check text-green-500 text-base"></i> Send gifts faster</li>
-                                                <li class="flex items-center gap-2"><i class="mdi mdi-check text-green-500 text-base"></i> Get celebration reminders</li>
-                                                <li class="flex items-center gap-2"><i class="mdi mdi-check text-green-500 text-base"></i> Create your own celebration page</li>
-                                            </ul>
-                                            <div class="mt-5 space-y-2">
-                                                <button @click="tab='register'" class="w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition">Create Free Account</button>
-                                                <button @click="showGuestModal=false" class="w-full py-3 rounded-xl border border-gray-200 text-sm hover:bg-gray-50 transition">Maybe Later</button>
-                                            </div>
-                                        </div>
-                                    @endguest
-                                </div>
-                            </template>
-
-                        </div>
-                    </div>
-
-                </div>
-            @endunless
-
-        </div>
-
-    </div>
-
-    {{-- ── CUSTOMIZER PANEL (owner only, slides in from right) ─────────────────── --}}
-    @if($isOwner)
-
-        {{-- Dim backdrop on mobile --}}
-        <div
-            x-show="customizerOpen"
-            x-transition:enter="transition-opacity duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="transition-opacity duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            @click="customizerOpen = false"
-            class="fixed inset-0 z-40 bg-black/20 lg:hidden"
-        ></div>
-
-        {{-- Panel --}}
-        <aside
-            x-show="customizerOpen"
-            x-transition:enter="transition transform duration-300 ease-out"
-            x-transition:enter-start="translate-x-full"
-            x-transition:enter-end="translate-x-0"
-            x-transition:leave="transition transform duration-200 ease-in"
-            x-transition:leave-start="translate-x-0"
-            x-transition:leave-end="translate-x-full"
-            class="fixed inset-y-0 right-0 z-50 w-72 bg-white border-l border-gray-200 flex flex-col overflow-hidden"
-        >
-
-            {{-- Panel header --}}
-            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-                <div class="flex items-center gap-2">
-                    <i class="mdi mdi-tune-variant text-gray-500 text-lg"></i>
-                    <h2 class="font-semibold text-gray-900 text-sm">Customise</h2>
-                </div>
-                <button
-                    @click="customizerOpen = false"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                >
-                    <i class="mdi mdi-close text-base"></i>
-                </button>
             </div>
 
-            {{-- Scrollable panel body --}}
-            <div class="flex-1 overflow-y-auto p-5 space-y-6">
+            {{-- ── SETTINGS (owner) ────────────────────────────────── --}}
+            @if($isOwner)
+                <div class="cel-pad" x-show="tab === 'settings'" x-cloak
+                     x-data="celebrationSettings({{ Js::from($settings) }})">
 
-                {{-- Occasion Templates --}}
-                <div>
-                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Choose Occasion</p>
-                    <p class="text-[10px] text-gray-400 mb-3">Each theme has preset colours you can personalise below.</p>
+                    <p class="cel-sec-t">Page details</p>
 
-                    <div class="space-y-2">
-                        @foreach($templates as $template)
-                            <button
-                                type="button"
-                                @click="selectTemplate({{ $template->id }})"
-                                class="relative w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left border-2 transition focus:outline-none"
-                                :class="selectedTemplateId === {{ $template->id }}
-                                    ? 'border-rose-400 ring-2 ring-rose-100'
-                                    : 'border-transparent hover:border-gray-100'"
-                                style="background-color: {{ $template->page_bg }}"
-                            >
-                                {{-- Occasion icon badge --}}
-                                <div
-                                    class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                                    style="background-color: {{ $template->accent_color }}1A"
-                                >
-                                    <i class="mdi {{ $template->icon }} text-xl" style="color: {{ $template->accent_color }}"></i>
-                                </div>
+                    <div class="set-field">
+                        <label class="set-label">Page title</label>
+                        <input type="text" class="input" x-model="form.title">
+                    </div>
+                    <div class="set-field">
+                        <label class="set-label">Celebrant</label>
+                        <input type="text" class="input" x-model="form.celebrant_name">
+                    </div>
+                    <div class="set-field set-grid">
+                        <div>
+                            <label class="set-label">Occasion</label>
+                            <select class="input" x-model="form.celebration_type">
+                                @foreach ([
+                                    'birthday' => 'Birthday', 'wedding' => 'Wedding', 'memorial' => 'Memorial',
+                                    'graduation' => 'Graduation', 'anniversary' => 'Anniversary',
+                                    'baby_shower' => 'Baby Shower', 'other' => 'Other',
+                                ] as $val => $label)
+                                    <option value="{{ $val }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="set-label">Date</label>
+                            <input type="date" class="input" x-model="form.event_date">
+                        </div>
+                    </div>
+                    <div class="set-field">
+                        <label class="set-label">About</label>
+                        <textarea class="input" rows="3" x-model="form.description"
+                                  placeholder="A short line about this celebration"></textarea>
+                    </div>
+                    <div class="set-field set-grid">
+                        <div>
+                            <label class="set-label">Status</label>
+                            <select class="input" x-model="form.status">
+                                <option value="draft">Draft</option>
+                                <option value="published">Live</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="set-label">Visibility</label>
+                            <select class="input" x-model="form.is_public">
+                                <option :value="true">Public</option>
+                                <option :value="false">Unlisted</option>
+                            </select>
+                        </div>
+                    </div>
 
-                                {{-- Name + description --}}
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-xs font-semibold leading-tight" style="color: {{ $template->text_primary }}">
-                                        {{ $template->name }}
-                                    </p>
-                                    <p class="text-[10px] leading-tight mt-0.5" style="color: {{ $template->text_secondary }}">
-                                        {{ $template->description }}
-                                    </p>
-                                </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-top:1.25rem">
+                        <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="save()">
+                            <i class="mdi" :class="saving ? 'mdi-loading mdi-spin' : 'mdi-check'"></i>
+                            <span x-text="saving ? 'Saving…' : 'Save details'"></span>
+                        </button>
+                        <span x-show="saved" x-cloak class="badge badge-ok">
+                            <i class="mdi mdi-check-circle-outline"></i> Saved
+                        </span>
+                        <span x-show="error" x-cloak class="badge badge-danger" x-text="error"></span>
+                    </div>
 
-                                {{-- Colour palette swatches --}}
-                                <div class="flex gap-1 shrink-0">
-                                    <span class="w-3 h-3 rounded-full border border-white/70"
-                                          style="background: {{ $template->page_bg }}; box-shadow: 0 0 0 1px {{ $template->text_secondary }}40"></span>
-                                    <span class="w-3 h-3 rounded-full"
-                                          style="background: {{ $template->text_primary }}"></span>
-                                    <span class="w-3 h-3 rounded-full"
-                                          style="background: {{ $template->accent_color }}"></span>
-                                </div>
+                    {{-- Custom URL --}}
+                    <div class="cel-sec">
+                        <p class="cel-sec-t">Page link</p>
+                        <x-slug-editor :celebration="$celebration" />
+                    </div>
 
-                                {{-- Active tick --}}
-                                <span
-                                    x-show="selectedTemplateId === {{ $template->id }}"
-                                    class="absolute top-2 right-2 w-4 h-4 rounded-full bg-rose-400 flex items-center justify-center"
-                                >
-                                    <i class="mdi mdi-check text-white text-[10px]"></i>
+                    {{-- Photos --}}
+                    <div class="cel-sec">
+                        <p class="cel-sec-t">Photos</p>
+                        <div class="set-photos">
+                            <label for="coverUpload" class="set-add" title="Add photos">
+                                <i class="mdi mdi-camera-plus-outline"></i>
+                            </label>
+                            @foreach($coverPhotos as $photo)
+                                <div class="set-photo"><img src="{{ asset('storage/'.$photo) }}" alt=""></div>
+                            @endforeach
+                        </div>
+                        <input type="file" id="coverUpload" class="hidden" accept="image/*" multiple>
+                    </div>
+
+                    {{-- Frame --}}
+                    <div class="cel-sec"
+                         x-data="{
+                            frameId: {{ $celebration->frame_id ?? 'null' }},
+                            async pick(id) {
+                                this.frameId = id;
+                                try {
+                                    const res = await fetch('{{ route('celebrant.update-frame', $celebration->id) }}', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                        body: JSON.stringify({ frame_id: id }),
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) window.location.reload();
+                                    else window.showAlert?.(data.message || 'Could not set the frame', 'error');
+                                } catch (e) { window.showAlert?.('Something went wrong', 'error'); }
+                            }
+                         }">
+                        <p class="cel-sec-t">Frame</p>
+                        <div class="set-swatches">
+                            <button type="button" class="set-swatch" :aria-pressed="frameId === null" @click="pick(null)" title="None">
+                                <span style="display:flex;align-items:center;justify-content:center;color:var(--muted-2)">
+                                    <i class="mdi mdi-close"></i>
                                 </span>
                             </button>
-                        @endforeach
-                    </div>
-                </div>
-
-                {{-- Live preview strip --}}
-                <template x-if="activeTemplate">
-                    <div>
-                        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Preview</p>
-                        <div class="rounded-2xl border border-gray-100 overflow-hidden">
-                            <div class="h-14 flex items-center px-3 gap-3" :style="`background-color:${customBg || activeTemplate.page_bg}`">
-                                <div class="w-8 h-8 rounded-xl border-2 shrink-0 flex items-center justify-center"
-                                     :style="`background:${activeTemplate.card_bg};border-color:${activeTemplate.photo_border_color};border-style:${activeTemplate.photo_border_style}`">
-                                    <i class="mdi text-sm" :class="activeTemplate.icon" :style="`color:${activeTemplate.accent_color}`"></i>
-                                </div>
-                                <div class="flex-1 space-y-1">
-                                    <div class="h-1.5 rounded-full" :style="`background:${customText || activeTemplate.text_primary};width:65%;opacity:0.85`"></div>
-                                    <div class="h-1 rounded-full" :style="`background:${activeTemplate.text_secondary};width:40%;opacity:0.6`"></div>
-                                </div>
-                                <div class="w-5 h-5 rounded-full shrink-0" :style="`background:${activeTemplate.accent_color}`"></div>
-                            </div>
-                            <div class="bg-white px-3 py-2 flex items-center justify-between">
-                                <span class="text-xs font-medium text-gray-700" x-text="activeTemplate.name"></span>
-                                <span class="text-[10px] text-gray-400 capitalize" x-text="activeTemplate.wishes_layout + ' layout'"></span>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-
-                {{-- Custom Colours --}}
-                <div>
-                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Custom Colours</p>
-                    <div class="space-y-2.5">
-
-                        {{-- Background colour --}}
-                        <div class="flex items-center justify-between gap-3">
-                            <label class="text-xs text-gray-600 shrink-0">Background</label>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-gray-400 font-mono" x-text="customBg || 'template default'"></span>
-                                <label class="relative cursor-pointer">
-                                    <input
-                                        type="color"
-                                        x-model="customBg"
-                                        class="sr-only"
-                                    >
-                                    <span
-                                        class="block w-7 h-7 rounded-lg border-2 border-gray-200 shadow-sm transition"
-                                        :style="customBg ? `background:${customBg}` : 'background:#F9FAFB'"
-                                    ></span>
-                                </label>
-                                <button
-                                    type="button"
-                                    x-show="customBg"
-                                    @click="customBg = ''"
-                                    class="text-gray-300 hover:text-gray-500 transition"
-                                    title="Clear"
-                                >
-                                    <i class="mdi mdi-close-circle text-base"></i>
+                            @foreach($frames as $frame)
+                                <button type="button" class="set-swatch" :aria-pressed="frameId === {{ $frame->id }}"
+                                        @click="pick({{ $frame->id }})" title="{{ $frame->name }}">
+                                    <span style="{{ $frame->type === 'css' ? $frame->css_content : '' }};background:var(--surface-2);display:flex;align-items:center;justify-content:center;overflow:hidden">
+                                        @if($frame->type === 'svg'){!! $frame->svg_content !!}@endif
+                                    </span>
                                 </button>
-                            </div>
+                            @endforeach
                         </div>
+                    </div>
 
-                        {{-- Text colour --}}
-                        <div class="flex items-center justify-between gap-3">
-                            <label class="text-xs text-gray-600 shrink-0">Text</label>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-gray-400 font-mono" x-text="customText || 'template default'"></span>
-                                <label class="relative cursor-pointer">
-                                    <input
-                                        type="color"
-                                        x-model="customText"
-                                        class="sr-only"
-                                    >
-                                    <span
-                                        class="block w-7 h-7 rounded-lg border-2 border-gray-200 shadow-sm transition"
-                                        :style="customText ? `background:${customText}` : 'background:#111827'"
-                                    ></span>
-                                </label>
-                                <button
-                                    type="button"
-                                    x-show="customText"
-                                    @click="customText = ''"
-                                    class="text-gray-300 hover:text-gray-500 transition"
-                                    title="Clear"
-                                >
-                                    <i class="mdi mdi-close-circle text-base"></i>
+                    {{-- Theme --}}
+                    <div class="cel-sec">
+                        <p class="cel-sec-t">Theme</p>
+                        <div class="set-swatches">
+                            @foreach($templates as $template)
+                                <button type="button" class="set-swatch"
+                                        :aria-pressed="selectedTemplateId === {{ $template->id }}"
+                                        @click="selectTemplate({{ $template->id }})" title="{{ $template->name }}">
+                                    <span style="background: {{ $template->page_bg }}">
+                                        <span style="display:block;width:50%;height:100%;background: {{ $template->card_bg }}"></span>
+                                    </span>
                                 </button>
+                            @endforeach
+                        </div>
+
+                        <div class="set-field set-grid" style="margin-top:0.9rem">
+                            <div>
+                                <label class="set-label">Background</label>
+                                <input type="color" x-model="customBg" class="input" style="padding:0.2rem;height:38px">
+                            </div>
+                            <div>
+                                <label class="set-label">Text</label>
+                                <input type="color" x-model="customText" class="input" style="padding:0.2rem;height:38px">
                             </div>
                         </div>
 
+                        <div style="display:flex;align-items:center;gap:0.6rem;margin-top:0.9rem">
+                            <button type="button" class="btn btn-primary btn-sm"
+                                    :disabled="!hasUnsavedChange || loading" @click="applyTemplate()">
+                                <i class="mdi" :class="loading ? 'mdi-loading mdi-spin' : 'mdi-check'"></i>
+                                <span x-text="loading ? 'Saving…' : 'Save theme'"></span>
+                            </button>
+                            <button type="button" class="btn btn-outline btn-sm" x-show="hasUnsavedChange" @click="cancelPreview()">
+                                Reset
+                            </button>
+                            <span x-show="successMessage" x-cloak class="badge badge-ok" x-text="successMessage"></span>
+                        </div>
                     </div>
                 </div>
+            @endif
 
-            </div>
-
-            {{-- Panel footer --}}
-            <div class="shrink-0 px-5 py-4 border-t border-gray-100 space-y-2">
-
-                {{-- Success feedback --}}
-                <div x-show="successMessage" x-transition class="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                    <i class="mdi mdi-check-circle-outline text-sm"></i>
-                    <span x-text="successMessage"></span>
+            {{-- ── PHOTOBOOK (owner) ───────────────────────────────── --}}
+            @if($isOwner)
+                <div class="cel-pad" x-show="tab === 'photobook'" x-cloak>
+                    @if($celebration->comments->count())
+                        <p class="cel-sec-t">Photobook</p>
+                        <p class="msg-text celebration-text-muted" style="margin-top:0">
+                            {{ $celebration->comments->count() }} {{ Str::plural('message', $celebration->comments->count()) }} ready to print.
+                        </p>
+                        <button type="button" class="btn btn-primary btn-block" style="margin-top:1.25rem"
+                                @click="$dispatch('open-photobook')">
+                            <i class="mdi mdi-book-open-page-variant-outline"></i> Build photobook
+                        </button>
+                    @else
+                        <div class="cel-empty">
+                            <i class="mdi mdi-book-open-page-variant-outline"></i>
+                            <p>Once wishes come in, you can turn them into a photobook here.</p>
+                        </div>
+                    @endif
                 </div>
+            @endif
 
-                <div class="flex gap-2">
-                    <button
-                        type="button"
-                        @click="cancelPreview()"
-                        x-show="hasUnsavedChange"
-                        class="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        @click="applyTemplate()"
-                        :disabled="loading || !hasUnsavedChange"
-                        class="flex-1 py-2.5 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-40 flex items-center justify-center gap-2"
-                    >
-                        <span x-show="!loading" class="flex items-center gap-1.5">
-                            <i class="mdi mdi-check text-base"></i> Apply
-                        </span>
-                        <span x-show="loading" class="flex items-center gap-1.5">
-                            <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                            </svg>
-                            Saving…
-                        </span>
-                    </button>
-                </div>
+        </div>{{-- /cel-body --}}
+    </div>{{-- /cel-panel --}}
 
-            </div>
-
-        </aside>
-
-    @endif
-
+</div>{{-- /cel-shell --}}
 </div>{{-- end root Alpine scope --}}
 
-{{-- Gifts plate modal — outside @unless so sidebar buttons work for owners too --}}
+{{-- ══ MODALS ════════════════════════════════════════════════════════ --}}
 <x-gifts-plate
     :gifts="$platformGifts"
     :visitorCurrency="$visitorCurrency"
@@ -861,7 +1056,6 @@ $customizerConfig = [
     :celebrationId="$celebration->id"
 />
 
-{{-- Wish contribution modal — handles all wish card clicks --}}
 <x-wishes-modal
     :visitorCurrency="$visitorCurrency"
     :visitorSymbol="$visitorSymbol"
@@ -871,30 +1065,22 @@ $customizerConfig = [
     :celebrationId="$celebration->id"
 />
 
-{{-- Comment photobook generator modal --}}
+@include('celebrations.partials.share-fallback')
+
 <x-photobook-modal />
+
 @php
 $photoBookComments = $celebration->comments
-    ->filter(function ($c) {
-        return $c->message && trim($c->message);
-    })
-    ->map(function ($c) {
-        return [
-            'author' => $c->user
-                ? trim($c->user->first_name . ' ' . $c->user->last_name)
-                : ($c->guest_name ?? 'Guest'),
-
-            'avatar' => $c->user && $c->user->profile_photo
-                ? asset('storage/' . $c->user->profile_photo)
-                : null,
-
-            'message' => $c->message,
-            'time' => $c->created_at->diffForHumans(),
-        ];
-    })
-    ->values()
-    ->toArray();
+    ->filter(fn ($c) => ($c->message && trim($c->message)) || ($c->media_url && $c->media_type === 'local-image'))
+    ->map(fn ($c) => [
+        'author'    => $c->user ? trim($c->user->first_name.' '.$c->user->last_name) : ($c->guest_name ?? 'Guest'),
+        'avatar'    => $c->user && $c->user->profile_photo ? asset('storage/'.$c->user->profile_photo) : null,
+        'message'   => $c->message,
+        'media_url' => ($c->media_url && $c->media_type === 'local-image') ? asset('storage/'.$c->media_url) : null,
+        'time'      => $c->created_at->diffForHumans(),
+    ])->values()->toArray();
 @endphp
+
 <script>
     window.CelebrationConfig = {
         isAuthenticated: @json(auth()->check()),
@@ -903,16 +1089,229 @@ $photoBookComments = $celebration->comments
         wishesUrl:       "{{ route('celebrant.create-wishes') }}",
         csrfToken:       "{{ csrf_token() }}",
         photobook: {
-            title:           "{{ addslashes($celebration->title) }}",
-            celebrantName:   "{{ addslashes($celebration->celebrant_name ?? '') }}",
-            coverPhoto:      "{{ $celebration->cover_photo ? asset('storage/'.$celebration->cover_photo) : ($celebration->celebrant_photo ? asset('storage/'.$celebration->celebrant_photo) : '') }}",
-            accentColor:     "#7C3AED",
-            eventDate:       "{{ $celebration->event_date?->format('F j, Y') ?? '' }}",
-            celebrationType: "{{ $celebration->celebration_type ?? 'celebration' }}",
-            appName:         "{{ config('app.name') }}",
-            comments: @json($photoBookComments),
+            title:           @json($celebration->title),
+            celebrantName:   @json($celebration->celebrant_name ?? ''),
+            coverPhoto:      @json($coverPhotoUrl),
+            accentColor:     "#7c3aed",
+            eventDate:       @json($celebration->event_date?->format('F j, Y') ?? ''),
+            celebrationType: @json($celebration->celebration_type ?? 'celebration'),
+            appName:         @json(config('app.name')),
+            comments:        @json($photoBookComments),
         },
     };
+
+    /**
+     * Registry tab — lets the celebrant take an item off the page.
+     * The server soft-deletes, so contributions already made survive.
+     */
+    function registryManager() {
+        return {
+            removed: [],
+            async remove(id, name) {
+                if (!confirm(`Remove "${name}" from your registry?`)) return;
+
+                try {
+                    const res = await fetch(`/celebrant/wishes/${id}`, {
+                        method:  'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': window.CelebrationConfig.csrfToken,
+                            'Accept':       'application/json',
+                        },
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        this.removed.push(id);
+                        window.showAlert?.(data.message, 'success');
+                    } else {
+                        window.showAlert?.(data.message || 'Could not remove it.', 'error');
+                    }
+                } catch (e) {
+                    window.showAlert?.('Network error.', 'error');
+                }
+            },
+        };
+    }
+    window.registryManager = registryManager;
+
+    /**
+     * Settings tab — saves the page details through celebrant.update.
+     */
+    function celebrationSettings(config) {
+        return {
+            saving: false,
+            saved:  false,
+            error:  '',
+            form: {
+                title:            config.title,
+                celebrant_name:   config.celebrantName,
+                celebration_type: config.type,
+                description:      config.description,
+                venue:            config.venue,
+                event_date:       config.eventDate,
+                start_date:       config.startDate,
+                end_date:         config.endDate,
+                is_public:        config.isPublic,
+                status:           config.status,
+            },
+
+            async save() {
+                this.saving = true;
+                this.error  = '';
+                this.saved  = false;
+
+                try {
+                    // A real PUT — `_method` spoofing is not read out of a JSON
+                    // body, only out of form-encoded input.
+                    const res = await fetch(config.saveUrl, {
+                        method:  'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': config.csrfToken,
+                            'Accept':       'application/json',
+                        },
+                        body: JSON.stringify(this.form),
+                    });
+                    const data = await res.json();
+
+                    if (res.ok && data.success) {
+                        this.saved = true;
+                        setTimeout(() => { this.saved = false; }, 2500);
+                    } else {
+                        this.error = data.message
+                            || Object.values(data.errors ?? {})[0]?.[0]
+                            || 'Could not save.';
+                    }
+                } catch (e) {
+                    this.error = 'Network error.';
+                } finally {
+                    this.saving = false;
+                }
+            },
+        };
+    }
+    window.celebrationSettings = celebrationSettings;
+
+    function videoReelsPlayer(videoList) {
+        return {
+            videos: videoList,
+            activeIndex: -1,
+            isOpen: false,
+            isPlaying: false,
+            isMuted: false,
+            progress: 0,
+            duration: 0,
+            currentTime: 0,
+
+            get activeVideo() {
+                return this.activeIndex >= 0 ? this.videos[this.activeIndex] : null;
+            },
+
+            openReel(videoId) {
+                const idx = this.videos.findIndex(v => v.id === videoId);
+                if (idx === -1) return;
+                this.activeIndex = idx;
+                this.isOpen      = true;
+                this.isPlaying   = true;
+                this.isMuted     = false;
+                this.progress    = 0;
+                this.$nextTick(() => this.initVideo());
+            },
+
+            close() {
+                this.isOpen = false;
+                this.pauseVideo();
+                this.activeIndex = -1;
+            },
+
+            initVideo() {
+                const el = document.getElementById('reelVideoPlayer');
+                if (!el) return;
+                el.load();
+                el.muted = this.isMuted;
+                el.play().then(() => { this.isPlaying = true; })
+                         .catch(() => { this.isPlaying = false; });
+            },
+
+            togglePlay() {
+                const el = document.getElementById('reelVideoPlayer');
+                if (!el) return;
+                if (this.isPlaying) { el.pause(); this.isPlaying = false; }
+                else { el.play().catch(() => {}); this.isPlaying = true; }
+            },
+
+            /*
+             * Space toggles playback, but the listener is on the window, so it
+             * also fires while the player is closed and while someone is typing.
+             * Guarding here rather than in the template keeps it a plain
+             * expression — Alpine cannot parse an `if` statement in an attribute.
+             */
+            onSpaceKey(event) {
+                if (! this.isOpen) return;
+
+                const el = event.target;
+                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+
+                event.preventDefault();
+                this.togglePlay();
+            },
+
+            pauseVideo() {
+                const el = document.getElementById('reelVideoPlayer');
+                if (el) el.pause();
+                this.isPlaying = false;
+            },
+
+            toggleMute() {
+                const el = document.getElementById('reelVideoPlayer');
+                if (!el) return;
+                el.muted = !el.muted;
+                this.isMuted = el.muted;
+            },
+
+            onTimeUpdate() {
+                const el = document.getElementById('reelVideoPlayer');
+                if (!el) return;
+                this.currentTime = el.currentTime;
+                this.duration    = el.duration || 1;
+                this.progress    = (this.currentTime / this.duration) * 100;
+            },
+
+            onEnded() { this.next(); },
+
+            next() {
+                if (this.activeIndex < this.videos.length - 1) {
+                    this.activeIndex++;
+                    this.progress = 0;
+                    this.$nextTick(() => this.initVideo());
+                } else {
+                    this.close();
+                }
+            },
+
+            prev() {
+                if (this.activeIndex > 0) {
+                    this.activeIndex--;
+                    this.progress = 0;
+                    this.$nextTick(() => this.initVideo());
+                }
+            }
+        };
+    }
+    window.videoReelsPlayer = videoReelsPlayer;
+
+    // Cover carousel
+    document.addEventListener('DOMContentLoaded', () => {
+        if (document.querySelector('.cover-swiper') && window.Swiper) {
+            new Swiper('.cover-swiper', {
+                loop: true,
+                autoplay: { delay: 5200, disableOnInteraction: false },
+                effect: 'fade',
+                fadeEffect: { crossFade: true },
+                pagination: { el: '.swiper-pagination', clickable: true },
+            });
+        }
+    });
 </script>
 
 </x-guest-layout>

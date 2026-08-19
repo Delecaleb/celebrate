@@ -2,6 +2,7 @@
 
 namespace App\Services\PaymentSystem;
 
+use Illuminate\Support\Facades\Log;
 use Stripe\StripeClient;
 
 class StripeService
@@ -62,5 +63,46 @@ class StripeService
     public function retrieveCheckoutSession(string $sessionId): \Stripe\Checkout\Session
     {
         return $this->client->checkout->sessions->retrieve($sessionId);
+    }
+
+    /**
+     * Confirm that Stripe took this payment, for this exact reference.
+     *
+     * Success-URL handlers must not credit anything until this returns true.
+     * It answers false — never throws, never "assumes paid" — when the session
+     * id is missing, when Stripe cannot be reached, when the session belongs to
+     * a different reference, or when it simply was not paid.
+     *
+     * The reference check matters: without it a genuine session id from any
+     * cheap payment could be replayed against someone else's reference.
+     */
+    public function confirmPaidFor(?string $sessionId, string $reference): bool
+    {
+        if (! $sessionId) {
+            Log::warning('Stripe callback with no session id', ['reference' => $reference]);
+            return false;
+        }
+
+        try {
+            $session = $this->retrieveCheckoutSession($sessionId);
+        } catch (\Throwable $e) {
+            Log::error('Stripe session retrieval failed', [
+                'reference' => $reference,
+                'session'   => $sessionId,
+                'error'     => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        if (($session->metadata->reference ?? null) !== $reference) {
+            Log::warning('Stripe session does not match its reference', [
+                'reference'         => $reference,
+                'session'           => $sessionId,
+                'session_reference' => $session->metadata->reference ?? null,
+            ]);
+            return false;
+        }
+
+        return $session->payment_status === 'paid';
     }
 }

@@ -96,64 +96,44 @@ async function buildCanvas({ celebrantPhoto, commentText, authorName, celebratio
         drawFallbackBg(ctx, accent);
     }
 
-    // 2. Dark gradient overlay (top → bottom)
-    const grad = ctx.createLinearGradient(0, H * 0.15, 0, H);
+    // 2. Dark gradient overlay — only the lower part, so the celebrant stays
+    //    visible now that the card no longer covers half the frame.
+    const grad = ctx.createLinearGradient(0, H * 0.42, 0, H);
     grad.addColorStop(0,   'rgba(0,0,0,0)');
-    grad.addColorStop(0.5, 'rgba(0,0,0,0.55)');
-    grad.addColorStop(1,   'rgba(0,0,0,0.88)');
+    grad.addColorStop(0.6, 'rgba(0,0,0,0.42)');
+    grad.addColorStop(1,   'rgba(0,0,0,0.80)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // 3. Card geometry
-    const PAD = 52;
-    const cx  = PAD,            cy  = Math.round(H * 0.37);
-    const cw  = W - PAD * 2,   ch  = Math.round(H * 0.53);
-    const IP  = 44;             // inner padding
+    /*
+     * 3. Card geometry.
+     *
+     * The card is the guest's message; the picture is the point. It is sized to
+     * its content and HARD CAPPED at a third of the image, anchored to the
+     * bottom so the celebrant always keeps the top two thirds.
+     */
+    const MAX_CH = Math.floor(H / 3);
+    const PAD    = 52;
+    const IP     = 34;                  // inner padding
+    const cx     = PAD;
+    const cw     = W - PAD * 2;
 
-    // 3a. Card drop shadow
+    const TITLE_H  = 24;
+    const TITLE_GAP = 14;
+    const AUTHOR_H = 26;
+    const AUTHOR_GAP = 14;
+    const LINE_H   = 46;
+
+    // How much vertical room the message itself may occupy inside the cap.
+    const bodyBudget = MAX_CH - IP * 2 - TITLE_H - TITLE_GAP - AUTHOR_GAP - AUTHOR_H;
+    const MAX_LINES  = Math.max(1, Math.floor(bodyBudget / LINE_H));
+
+    // Measure with the same font the message is drawn in.
     ctx.save();
-    ctx.shadowColor   = 'rgba(0,0,0,0.28)';
-    ctx.shadowBlur    = 52;
-    ctx.shadowOffsetY = 14;
-    roundRect(ctx, cx, cy, cw, ch, 32, 'rgba(255,255,255,0.97)');
-    ctx.restore();
-
-    // 3b. Accent colour stripe at top of card
-    roundRect(ctx, cx, cy, cw, 8, [32, 32, 0, 0], accent);
-
-    // 4. Celebration title (above comment)
-    ctx.save();
-    ctx.textBaseline = 'top';
-    ctx.textAlign    = 'left';
-    ctx.fillStyle    = accent;
-    ctx.font         = `700 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
-    const titleStr   = celebrationTitle.length > 48
-        ? celebrationTitle.slice(0, 48) + '…'
-        : celebrationTitle;
-    ctx.fillText(titleStr.toUpperCase(), cx + IP, cy + 24);
-    ctx.restore();
-
-    // 5. Decorative opening quote (faded)
-    ctx.save();
-    ctx.globalAlpha = 0.10;
-    ctx.fillStyle   = accent;
-    ctx.font        = `700 140px Georgia, 'Times New Roman', serif`;
-    ctx.textBaseline = 'top';
-    ctx.fillText('“', cx + IP - 12, cy + 20);
-    ctx.restore();
-
-    // 6. Comment text (max 4 lines)
-    ctx.save();
-    ctx.fillStyle    = '#111827';
-    ctx.font         = `400 40px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.textBaseline = 'top';
-    ctx.textAlign    = 'left';
-
-    const MAX_LINES  = 4;
-    const LINE_H     = 56;
-    const maxTextW   = cw - IP * 2;
-    const rawLines   = wrapText(ctx, (commentText || '').trim(), maxTextW);
-    let   visLines   = rawLines.slice(0, MAX_LINES);
+    ctx.font = `400 34px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    const maxTextW = cw - IP * 2;
+    const rawLines = wrapText(ctx, (commentText || '').trim(), maxTextW);
+    const visLines = rawLines.slice(0, MAX_LINES);
 
     if (rawLines.length > MAX_LINES) {
         let last = visLines[MAX_LINES - 1];
@@ -162,8 +142,54 @@ async function buildCanvas({ celebrantPhoto, commentText, authorName, celebratio
         }
         visLines[MAX_LINES - 1] = last + '…';
     }
+    ctx.restore();
 
-    let ty = cy + IP + 52;
+    const ch = Math.min(
+        MAX_CH,
+        IP * 2 + TITLE_H + TITLE_GAP + visLines.length * LINE_H + AUTHOR_GAP + AUTHOR_H
+    );
+    const cy = H - 64 - ch;   // sits above the watermark
+
+    // 3a. Card drop shadow
+    ctx.save();
+    ctx.shadowColor   = 'rgba(0,0,0,0.28)';
+    ctx.shadowBlur    = 44;
+    ctx.shadowOffsetY = 12;
+    roundRect(ctx, cx, cy, cw, ch, 28, 'rgba(255,255,255,0.97)');
+    ctx.restore();
+
+    // 3b. Accent colour stripe at top of card
+    roundRect(ctx, cx, cy, cw, 7, [28, 28, 0, 0], accent);
+
+    // 4. Celebration title (above comment)
+    ctx.save();
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'left';
+    ctx.fillStyle    = accent;
+    ctx.font         = `700 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    const titleStr   = celebrationTitle.length > 48
+        ? celebrationTitle.slice(0, 48) + '…'
+        : celebrationTitle;
+    ctx.fillText(titleStr.toUpperCase(), cx + IP, cy + IP);
+    ctx.restore();
+
+    // 5. Decorative opening quote (faded)
+    ctx.save();
+    ctx.globalAlpha  = 0.09;
+    ctx.fillStyle    = accent;
+    ctx.font         = `700 96px Georgia, 'Times New Roman', serif`;
+    ctx.textBaseline = 'top';
+    ctx.fillText('“', cx + IP - 8, cy + IP - 6);
+    ctx.restore();
+
+    // 6. Comment text
+    ctx.save();
+    ctx.fillStyle    = '#111827';
+    ctx.font         = `400 34px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'left';
+
+    let ty = cy + IP + TITLE_H + TITLE_GAP;
     for (const line of visLines) {
         ctx.fillText(line, cx + IP, ty);
         ty += LINE_H;
@@ -173,7 +199,7 @@ async function buildCanvas({ celebrantPhoto, commentText, authorName, celebratio
     // 7. Author name
     ctx.save();
     ctx.fillStyle    = '#6B7280';
-    ctx.font         = `600 28px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.font         = `600 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textBaseline = 'bottom';
     ctx.textAlign    = 'left';
     ctx.fillText('— ' + authorName, cx + IP, cy + ch - IP);
@@ -193,6 +219,21 @@ async function buildCanvas({ celebrantPhoto, commentText, authorName, celebratio
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
+/**
+ * Share a wish as an image.
+ *
+ * Preference order:
+ *   1. native share sheet WITH the image attached — the real thing, this is
+ *      what puts the picture into WhatsApp, Instagram, X and the rest;
+ *   2. native share sheet with just a link, for browsers that have share()
+ *      but refuse files;
+ *   3. our own sheet of social links, with the image offered as a download.
+ *
+ * Worth knowing: navigator.share only exists in a SECURE CONTEXT. Served over
+ * plain http:// it is undefined everywhere except localhost, so every visitor
+ * lands on (3) no matter how good their browser is. Serving over https:// is
+ * what turns the real share sheet on.
+ */
 export async function shareComment(buttonEl, data) {
     // Loading state
     const icon = buttonEl.querySelector('i');
@@ -200,35 +241,51 @@ export async function shareComment(buttonEl, data) {
     if (icon) icon.className = 'mdi mdi-loading mdi-spin text-base';
     buttonEl.disabled = true;
 
+    const pageUrl = window.location.href;
+    const text    = `"${data.commentText}" — ${data.authorName}`;
+
     try {
         const canvas = await buildCanvas(data);
+        const blob   = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+        const file   = new File([blob], 'celebration-wish.jpg', { type: 'image/jpeg' });
 
-        // Try Web Share API (mobile / Chromium)
-        if (typeof navigator.share === 'function') {
+        // 1. native sheet, image attached
+        if (navigator.canShare?.({ files: [file] })) {
             try {
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-                const file = new File([blob], 'celebration-wish.jpg', { type: 'image/jpeg' });
-                if (navigator.canShare?.({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: data.celebrationTitle,
-                        text:  `"${data.commentText}" — ${data.authorName}`,
-                    });
-                    return;
-                }
+                await navigator.share({
+                    files: [file],
+                    title: data.celebrationTitle,
+                    text,
+                });
+                return;
             } catch (err) {
-                if (err.name === 'AbortError') return; // user cancelled
-                // fall through to download
+                if (err.name === 'AbortError') return;   // user closed the sheet
+                // otherwise fall through
             }
         }
 
-        // Fallback: download the image
-        const a    = document.createElement('a');
-        a.download = 'celebration-wish.jpg';
-        a.href     = canvas.toDataURL('image/jpeg', 0.92);
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // 2. native sheet, link only
+        if (typeof navigator.share === 'function') {
+            try {
+                await navigator.share({ title: data.celebrationTitle, text, url: pageUrl });
+                return;
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+            }
+        }
+
+        // 3. our own sheet — the page listens for this and shows the options
+        window.dispatchEvent(new CustomEvent('wish-share-fallback', {
+            detail: {
+                imageUrl: canvas.toDataURL('image/jpeg', 0.92),
+                title:    data.celebrationTitle,
+                text,
+                pageUrl,
+                // true when the browser could have done it but the page is not
+                // on https — worth telling the owner rather than the guest
+                blockedByHttp: ! window.isSecureContext,
+            },
+        }));
 
     } finally {
         if (icon) icon.className = prev;

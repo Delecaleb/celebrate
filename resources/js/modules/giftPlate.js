@@ -18,6 +18,10 @@ export function giftPlate(config) {
         success:         '',
         giftMessage:     '',
 
+        // Guests pay by card without an account — these go with the payment.
+        guestName:       '',
+        guestEmail:      '',
+
         // hydrated from Blade config object
         walletBalance:   config.walletBalance,
         visitorCurrency: config.visitorCurrency,
@@ -119,8 +123,19 @@ export function giftPlate(config) {
             }
         },
 
+        /** True once a guest has given us somewhere to send the receipt. */
+        get canGuestPay() {
+            return this.guestName.trim().length > 1
+                && /^\S+@\S+\.\S+$/.test(this.guestEmail.trim());
+        },
+
         /** Initialise a Paystack payment for the selected gift. */
         async initiatePayment() {
+            if (!this.isAuthenticated && !this.canGuestPay) {
+                this.error = 'Please add your name and email.';
+                return;
+            }
+
             this.loading = true;
             this.error   = '';
             this.success = '';
@@ -137,6 +152,8 @@ export function giftPlate(config) {
                         platform_gift_id: this.selected.id,
                         celebration_id:   this.celebrationId,
                         message:          this.giftMessage,
+                        guest_name:       this.isAuthenticated ? null : this.guestName.trim(),
+                        guest_email:      this.isAuthenticated ? null : this.guestEmail.trim(),
                     }),
                 });
 

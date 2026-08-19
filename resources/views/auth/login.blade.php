@@ -14,16 +14,19 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
 
+    <x-brand-tokens />
+
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Local names → the brand palette. Colours live in resources/brand.json;
+           --muted comes straight from the brand-tokens component above. */
         :root {
-            --off:    #faf8f5;
-            --white:  #ffffff;
-            --dark:   #1a1714;
-            --muted:  #7a7065;
-            --accent: #c8440f;
-            --border: #e4dfd9;
+            --off:    var(--surface-2);
+            --white:  var(--surface);
+            --dark:   var(--ink);
+            --accent: var(--primary);
+            --border: var(--line);
         }
 
         html, body { height: 100%; }
@@ -237,8 +240,8 @@
             inset: 0;
             background: linear-gradient(
                 to top,
-                rgba(26, 23, 20, 0.75) 0%,
-                rgba(26, 23, 20, 0.15) 55%,
+                rgba(var(--ink-rgb) / 0.78) 0%,
+                rgba(var(--ink-rgb) / 0.15) 55%,
                 transparent 100%
             );
         }

@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    // HasApiTokens is what the mobile client authenticates with — issued by
+    // Api\AuthController, never used by the session-based web routes.
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'uuid',
@@ -31,6 +34,7 @@ class User extends Authenticatable
         'email_verified_at',
         'status',
         'wallet_balance',
+        'global_wallet_balance',
         'last_seen_at',
     ];
 
@@ -45,6 +49,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'last_seen_at'      => 'datetime',
         'wallet_balance'    => 'decimal:2',
+        'global_wallet_balance' => 'decimal:2',
     ];
 
     public function celebrations()

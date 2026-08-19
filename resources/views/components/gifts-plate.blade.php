@@ -77,27 +77,55 @@
             {{-- Gift card --}}
             <div class="flex gap-4 items-center bg-gray-50 border border-gray-100 rounded-2xl p-4">
                 <img
-                    :src="selected.image"
-                    :alt="selected.name"
+                    {{-- optional chaining: this panel is x-show, so Alpine
+                         evaluates these while `selected` is still null --}}
+                    :src="selected?.image"
+                    :alt="selected?.name"
                     class="w-18 h-18 rounded-xl object-cover border border-gray-100 shrink-0"
                     style="width:4.5rem;height:4.5rem"
                 >
                 <div>
-                    <h3 class="font-bold text-base text-gray-900" x-text="selected.name"></h3>
-                    <p class="text-2xl font-black text-rose-500 mt-1" x-text="visitorSymbol + formatNum(selected.price)"></p>
+                    <h3 class="font-bold text-base text-gray-900" x-text="selected?.name"></h3>
+                    <p class="text-2xl font-black text-rose-500 mt-1" x-text="selected ? visitorSymbol + formatNum(selected.price) : ''"></p>
                 </div>
             </div>
 
-            {{-- Not logged in --}}
+            {{-- Guest: no account needed, just somewhere to send the receipt --}}
             <template x-if="!isAuthenticated">
-                <div class="text-center space-y-3 py-4">
-                    <p class="text-sm text-gray-500">Sign in to send this gift to the celebrant.</p>
-                    <a
-                        href="{{ route('login') }}"
-                        class="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition"
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" x-model="guestName" placeholder="Your name"
+                               class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-gray-900">
+                        <input type="email" x-model="guestEmail" placeholder="Your email"
+                               class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-gray-900">
+                    </div>
+
+                    <div x-show="error" x-transition class="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                        <i class="mdi mdi-alert-circle-outline text-base"></i>
+                        <span x-text="error"></span>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="initiatePayment()"
+                        :disabled="loading || !canGuestPay"
+                        class="w-full py-3 rounded-xl bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        <i class="mdi mdi-account-outline text-base"></i> Sign in to Send Gift
-                    </a>
+                        <span x-show="!loading" class="flex items-center gap-2">
+                            <i class="mdi mdi-credit-card-outline text-base"></i> Pay &amp; send gift
+                        </span>
+                        <span x-show="loading" class="flex items-center gap-2">
+                            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                            </svg>
+                            Preparing payment…
+                        </span>
+                    </button>
+
+                    <p class="text-xs text-gray-400 text-center">
+                        <a href="{{ route('login') }}" class="underline">Sign in</a> to pay from your wallet instead.
+                    </p>
                 </div>
             </template>
 

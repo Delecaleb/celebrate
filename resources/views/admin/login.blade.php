@@ -11,16 +11,19 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 
+    <x-brand-tokens />
+
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Local names → the brand palette. Colours live in resources/brand.json;
+           --muted comes straight from the brand-tokens component above. */
         :root {
-            --off:    #faf8f5;
-            --white:  #ffffff;
-            --dark:   #1a1714;
-            --muted:  #7a7065;
-            --accent: #c8440f;
-            --border: #e8e3dd;
+            --off:    var(--surface-2);
+            --white:  var(--surface);
+            --dark:   var(--ink);
+            --accent: var(--primary);
+            --border: var(--line);
         }
 
         body {
@@ -50,7 +53,7 @@
         }
 
         .login-header {
-            background: linear-gradient(135deg, #c8440f 0%, #e8623a 100%);
+            background: var(--primary);
             padding: 2.25rem 2.5rem 2rem;
             position: relative;
             overflow: hidden;

@@ -132,6 +132,22 @@ async function drawAvatar(ctx, url, name, cx, cy, radius) {
     ctx.restore();
 }
 
+/** Load and draw a card image with rounded corners. */
+async function drawCardImage(ctx, url, x, y, w, h, radius) {
+    if (!url) return;
+    try {
+        const img = await loadImage(url);
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, x, y, w, h, radius);
+        ctx.clip();
+        drawCover(ctx, img, x, y, w, h);
+        ctx.restore();
+    } catch (e) {
+        console.error('Failed to load card image', e);
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // COVER PAGE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,6 +369,7 @@ async function drawCommentCard(ctx, comment, x, y, w, h, perPage, accent, cfg) {
     const isSingle   = perPage === 1;
     const IP         = Math.round(w * (isSingle ? 0.055 : 0.042));   // inner padding
     const RADIUS     = Math.round(Math.min(w, h) * 0.045);
+    const hasImage   = !!comment.media_url;
 
     // Card shadow
     ctx.save();
@@ -370,8 +387,8 @@ async function drawCommentCard(ctx, comment, x, y, w, h, perPage, accent, cfg) {
     const iW = w - stripeW - IP * 2;
 
     if (isSingle) {
-        // ── SINGLE: big quote + large text + avatar at bottom ────────────────
-
+        // ── SINGLE: big quote + large text + image under text + avatar at bottom
+        
         // Decorative opening quote
         ctx.save();
         ctx.globalAlpha  = 0.07;
@@ -382,22 +399,40 @@ async function drawCommentCard(ctx, comment, x, y, w, h, perPage, accent, cfg) {
         ctx.fillText('"', iX - Math.round(w * 0.01), y + IP * 0.5);
         ctx.restore();
 
+        const sepY = y + h - Math.round(h * 0.26);
+        const textTop = y + IP + Math.round(h * 0.07);
+
         // Message text
         const msgFontSize = Math.round(h * 0.072);
         const lineH       = Math.round(msgFontSize * 1.45);
-        const maxLines    = Math.floor((h * 0.52) / lineH);
+        
+        let maxLines = 6;
+        if (hasImage) {
+            const minImgH = Math.round(h * 0.25);
+            const maxTextH = sepY - textTop - minImgH - Math.round(h * 0.04);
+            maxLines = Math.max(1, Math.floor(maxTextH / lineH));
+        }
+
         ctx.save();
         ctx.fillStyle    = '#111827';
         ctx.font         = `400 ${msgFontSize}px system-ui,sans-serif`;
         ctx.textBaseline = 'top';
         ctx.textAlign    = 'left';
-        const lines = wrapText(ctx, comment.message, iW, maxLines);
-        const textTop = y + IP + Math.round(h * 0.07);
+        const lines = wrapText(ctx, comment.message || '', iW, maxLines);
         lines.forEach((ln, li) => ctx.fillText(ln, iX, textTop + li * lineH));
         ctx.restore();
 
+        // Image under text
+        if (hasImage) {
+            const textHeight = lines.length * lineH;
+            const imgY = textTop + textHeight + Math.round(h * 0.02);
+            const imgH = sepY - imgY - Math.round(h * 0.02);
+            if (imgH > 10) {
+                await drawCardImage(ctx, comment.media_url, iX, imgY, iW, imgH, RADIUS);
+            }
+        }
+
         // Separator
-        const sepY = y + h - Math.round(h * 0.26);
         ctx.save();
         ctx.strokeStyle = '#E5E7EB';
         ctx.lineWidth   = 1;
@@ -430,8 +465,7 @@ async function drawCommentCard(ctx, comment, x, y, w, h, perPage, accent, cfg) {
         ctx.restore();
 
     } else {
-        // ── MULTI: avatar + name header, then message ────────────────────────
-
+        // ── MULTI: avatar + name header, then message, then image under text ─
         const avR   = Math.round(h * (perPage <= 2 ? 0.175 : 0.155));
         const avCX  = iX + avR;
         const avCY  = y + Math.round(h * 0.38);
@@ -461,15 +495,32 @@ async function drawCommentCard(ctx, comment, x, y, w, h, perPage, accent, cfg) {
         const msgFontSz = Math.round(h * (perPage <= 2 ? 0.145 : 0.125));
         const lineH     = Math.round(msgFontSz * 1.4);
         const maxH      = y + h - msgTop - IP;
-        const maxLines  = Math.max(1, Math.floor(maxH / lineH));
+        
+        let maxLines = Math.max(1, Math.floor(maxH / lineH));
+        if (hasImage) {
+            const minImgH = Math.round(maxH * 0.45);
+            const maxTextH = maxH - minImgH - Math.round(h * 0.04);
+            maxLines = Math.max(1, Math.floor(maxTextH / lineH));
+        }
+
         ctx.save();
         ctx.fillStyle    = '#374151';
         ctx.font         = `400 ${msgFontSz}px system-ui,sans-serif`;
         ctx.textBaseline = 'top';
         ctx.textAlign    = 'left';
-        const lines = wrapText(ctx, comment.message, iW - avR * 0.5, maxLines);
+        const lines = wrapText(ctx, comment.message || '', iW - avR * 0.5, maxLines);
         lines.forEach((ln, li) => ctx.fillText(ln, iX, msgTop + li * lineH));
         ctx.restore();
+
+        // Image under text
+        if (hasImage) {
+            const textHeight = lines.length * lineH;
+            const imgY = msgTop + textHeight + Math.round(h * 0.02);
+            const imgH = y + h - IP - imgY;
+            if (imgH > 10) {
+                await drawCardImage(ctx, comment.media_url, iX, imgY, iW, imgH, RADIUS);
+            }
+        }
     }
 }
 
@@ -495,6 +546,8 @@ export function photobookGenerator(config) {
         },
 
         // ── State ──────────────────────────────────────────────────────────────
+        activeTab:       'settings', // 'settings' | 'preview'
+        showSuccessToast:false,
         generating:      false,
         progress:        0,        // 0-100
         pages:           [],       // JPEG data-URL per page
@@ -522,7 +575,7 @@ export function photobookGenerator(config) {
             return `${this.currentPage + 1} / ${this.totalPages}`;
         },
         get commentsFiltered() {
-            return this.comments.filter(c => c.message && c.message.trim());
+            return this.comments.filter(c => (c.message && c.message.trim()) || c.media_url);
         },
 
         // ── Helpers ────────────────────────────────────────────────────────────
@@ -598,6 +651,9 @@ export function photobookGenerator(config) {
             this.progress   = 100;
             this.generating = false;
             this.generated  = true;
+            this.activeTab  = 'preview';
+            this.showSuccessToast = true;
+            setTimeout(() => { this.showSuccessToast = false; }, 3000);
         },
 
         // ── Download ───────────────────────────────────────────────────────────

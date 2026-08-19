@@ -11,6 +11,11 @@ class WalletTransaction extends Model
     protected $fillable = [
         'user_id',
         'type',
+        // The column has always existed and every writer passes it, but it was
+        // missing here — so mass assignment dropped it and the funding callbacks
+        // (which branch on $tx->wallet_type) credited the local wallet for USD
+        // top-ups. It has to stay fillable.
+        'wallet_type',
         'amount',
         'currency',
         'original_amount',

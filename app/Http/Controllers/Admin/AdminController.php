@@ -110,11 +110,14 @@ class AdminController extends Controller
         // Refund the wallet
         $walletService = app(\App\Services\PaymentSystem\WalletService::class);
         $walletService->credit(
-            user:        $withdrawal->user,
-            amountBase:  (float) $withdrawal->amount,
-            description: "Refund: rejected withdrawal #{$withdrawal->id}",
-            reference:   'refund-' . $withdrawal->reference,
-            source:      $withdrawal,
+            user:             $withdrawal->user,
+            amount:           (float) $withdrawal->amount,
+            description:      "Refund: rejected withdrawal #{$withdrawal->id}",
+            reference:        'refund-' . $withdrawal->reference,
+            source:           $withdrawal,
+            originalAmount:   (float) $withdrawal->original_amount,
+            originalCurrency: $withdrawal->original_currency,
+            walletType:       $withdrawal->wallet_type ?? 'local'
         );
 
         $withdrawal->update([
@@ -125,4 +128,57 @@ class AdminController extends Controller
 
         return back()->with('success', "Withdrawal #{$withdrawal->id} rejected and wallet refunded.");
     }
+
+    public function frames(Request $request)
+    {
+        $frames = \App\Models\Frame::latest()->paginate(20);
+        return view('admin.frames', compact('frames'));
+    }
+
+    public function storeFrame(Request $request)
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'type' => ['required', 'in:css,svg'],
+            'css_content' => ['nullable', 'string', 'required_if:type,css'],
+            'svg_content' => ['nullable', 'string', 'required_if:type,svg'],
+            'preview_image' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $imagePath = null;
+        if ($request->hasFile('preview_image')) {
+            $file = $request->file('preview_image');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            
+            // Ensure directory exists
+            $dir = public_path('images/frames');
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            $file->move($dir, $fileName);
+            $imagePath = $fileName;
+        }
+
+        \App\Models\Frame::create([
+            'name' => $request->name,
+            'type' => $request->type,
+            'css_content' => $request->css_content,
+            'svg_content' => $request->svg_content,
+            'preview_image' => $imagePath,
+        ]);
+
+        return back()->with('success', 'Frame added successfully.');
+    }
+
+    public function deleteFrame(\App\Models\Frame $frame)
+    {
+        if ($frame->preview_image && file_exists(public_path('images/frames/' . $frame->preview_image))) {
+            @unlink(public_path('images/frames/' . $frame->preview_image));
+        }
+
+        $frame->delete();
+        return back()->with('success', 'Frame deleted successfully.');
+    }
 }
+

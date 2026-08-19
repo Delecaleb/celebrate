@@ -19,62 +19,58 @@ class WithdrawalController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'amount'          => ['required', 'numeric', 'min:100'],
+            'amount'          => ['required', 'numeric', 'min:1'],
             'bank_account_id' => ['required', 'integer'],
+            'wallet_type'     => ['required', 'string', 'in:local,global'],
         ]);
 
         $user        = auth()->user();
         $bankAccount = $user->bankAccounts()->findOrFail($request->bank_account_id);
+        $walletType  = $request->wallet_type;
+        $amount      = (float) $request->amount;
 
-        // Resolve user's display currency and convert to base (USD)
-        $userCurrency  = $this->currency->forUser($user);
-        $baseCurrency  = config('currency.base', 'USD');
-        $amountDisplay = (float) $request->amount;
+        $userCurrency = $this->currency->forUser($user);
+        $currency     = ($walletType === 'global') ? 'USD' : $userCurrency;
 
-        $amountBase = $userCurrency === $baseCurrency
-            ? $amountDisplay
-            : $this->currency->convert($amountDisplay, $userCurrency, $baseCurrency);
-
-        if (! $this->wallet->hasSufficientBalance($user, $amountBase)) {
+        if (! $this->wallet->hasSufficientBalance($user, $amount, $walletType)) {
             return back()
                 ->withInput()
-                ->with('error', 'Insufficient wallet balance.')
-                ->with('active_tab', 'withdrawals');
+                ->with('error', 'Insufficient wallet balance.');
         }
 
         $reference = 'wd-' . Str::uuid();
 
         DB::transaction(function () use (
-            $user, $bankAccount, $amountBase, $amountDisplay,
-            $userCurrency, $baseCurrency, $reference
+            $user, $bankAccount, $amount, $currency, $walletType, $reference
         ) {
             $withdrawal = Withdrawal::create([
                 'user_id'             => $user->id,
                 'bank_account_id'     => $bankAccount->id,
+                'wallet_type'         => $walletType,
                 'bank_name'           => $bankAccount->bank_name,
                 'bank_account_number' => $bankAccount->account_number,
                 'bank_account_name'   => $bankAccount->account_name,
-                'amount'              => $amountBase,
-                'currency'            => $baseCurrency,
-                'original_amount'     => $amountDisplay,
-                'original_currency'   => $userCurrency,
+                'amount'              => $amount,
+                'currency'            => $currency,
+                'original_amount'     => $amount,
+                'original_currency'   => $currency,
                 'status'              => 'pending',
                 'reference'           => $reference,
             ]);
 
             $this->wallet->debit(
                 user:             $user,
-                amountBase:       $amountBase,
-                description:      "Withdrawal to {$bankAccount->bank_name} ••{$bankAccount->account_number}",
+                amount:           $amount,
+                description:      "Withdrawal to {$bankAccount->bank_name} â€¢â€¢{$bankAccount->account_number}",
                 reference:        $reference,
                 source:           $withdrawal,
-                originalAmount:   $amountDisplay,
-                originalCurrency: $userCurrency,
+                originalAmount:   $amount,
+                originalCurrency: $currency,
+                walletType:       $walletType
             );
         });
 
         return back()
-            ->with('success', 'Withdrawal request submitted. We will process it within 1–2 business days.')
-            ->with('active_tab', 'withdrawals');
+            ->with('success', 'Withdrawal request submitted. We will process it within 1â€“2 business days.');
     }
 }

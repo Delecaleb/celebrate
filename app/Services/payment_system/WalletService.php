@@ -17,23 +17,24 @@ class WalletService
     // -------------------------------------------------------------------------
 
     /**
-     * Return the user's balance converted to $currency.
-     * The ledger is always stored in the base currency (USD).
+     * Return the user's balance for the local or global (USD) wallet.
      */
-    public function balance(User $user, ?string $currency = null): float
+    public function balance(User $user, string $walletType = 'local'): float
     {
-        $base = (float) $user->wallet_balance;
-
-        if ($currency === null || $currency === config('currency.base')) {
-            return $base;
+        $type = (strtoupper($walletType) === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        if ($type === 'global') {
+            return (float) $user->global_wallet_balance;
         }
-
-        return $this->currency->convert($base, config('currency.base'), $currency);
+        return (float) $user->wallet_balance;
     }
 
-    public function hasSufficientBalance(User $user, float $amountInBase): bool
+    public function hasSufficientBalance(User $user, float $amount, string $walletType = 'local'): bool
     {
-        return (float) $user->wallet_balance >= $amountInBase;
+        $type = (strtoupper($walletType) === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        if ($type === 'global') {
+            return (float) $user->global_wallet_balance >= $amount;
+        }
+        return (float) $user->wallet_balance >= $amount;
     }
 
     // -------------------------------------------------------------------------
@@ -42,27 +43,36 @@ class WalletService
 
     public function debit(
         User    $user,
-        float   $amountBase,
+        float   $amount,
         string  $description,
         ?string $reference = null,
         ?Model  $source = null,
         ?float  $originalAmount = null,
         ?string $originalCurrency = null,
+        string  $walletType = 'local'
     ): WalletTransaction {
+        $type = (strtoupper($originalCurrency ?? '') === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        $currency = $type === 'global' ? 'USD' : ($user->currency ?? 'NGN');
+
         return DB::transaction(function () use (
-            $user, $amountBase, $description, $reference,
-            $source, $originalAmount, $originalCurrency
+            $user, $amount, $description, $reference,
+            $source, $originalAmount, $originalCurrency, $type, $currency
         ) {
-            $user->decrement('wallet_balance', $amountBase);
+            if ($type === 'global') {
+                $user->decrement('global_wallet_balance', $amount);
+            } else {
+                $user->decrement('wallet_balance', $amount);
+            }
             $user->refresh();
 
             return WalletTransaction::create([
                 'user_id'              => $user->id,
                 'type'                 => 'debit',
-                'amount'               => $amountBase,
-                'currency'             => config('currency.base'),
-                'original_amount'      => $originalAmount,
-                'original_currency'    => $originalCurrency,
+                'wallet_type'          => $type,
+                'amount'               => $amount,
+                'currency'             => $currency,
+                'original_amount'      => $originalAmount ?? $amount,
+                'original_currency'    => $originalCurrency ?? $currency,
                 'description'          => $description,
                 'reference'            => $reference ?? (string) Str::uuid(),
                 'status'               => 'completed',
@@ -74,27 +84,36 @@ class WalletService
 
     public function credit(
         User    $user,
-        float   $amountBase,
+        float   $amount,
         string  $description,
         ?string $reference = null,
         ?Model  $source = null,
         ?float  $originalAmount = null,
         ?string $originalCurrency = null,
+        string  $walletType = 'local'
     ): WalletTransaction {
+        $type = (strtoupper($originalCurrency ?? '') === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        $currency = $type === 'global' ? 'USD' : ($user->currency ?? 'NGN');
+
         return DB::transaction(function () use (
-            $user, $amountBase, $description, $reference,
-            $source, $originalAmount, $originalCurrency
+            $user, $amount, $description, $reference,
+            $source, $originalAmount, $originalCurrency, $type, $currency
         ) {
-            $user->increment('wallet_balance', $amountBase);
+            if ($type === 'global') {
+                $user->increment('global_wallet_balance', $amount);
+            } else {
+                $user->increment('wallet_balance', $amount);
+            }
             $user->refresh();
 
             return WalletTransaction::create([
                 'user_id'              => $user->id,
                 'type'                 => 'credit',
-                'amount'               => $amountBase,
-                'currency'             => config('currency.base'),
-                'original_amount'      => $originalAmount,
-                'original_currency'    => $originalCurrency,
+                'wallet_type'          => $type,
+                'amount'               => $amount,
+                'currency'             => $currency,
+                'original_amount'      => $originalAmount ?? $amount,
+                'original_currency'    => $originalCurrency ?? $currency,
                 'description'          => $description,
                 'reference'            => $reference ?? (string) Str::uuid(),
                 'status'               => 'completed',

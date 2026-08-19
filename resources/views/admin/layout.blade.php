@@ -11,16 +11,19 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 
+    <x-brand-tokens />
+
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Local names → the brand palette. Colours live in resources/brand.json;
+           --muted comes straight from the brand-tokens component above. */
         :root {
-            --off:     #faf8f5;
-            --white:   #ffffff;
-            --dark:    #1a1714;
-            --muted:   #7a7065;
-            --accent:  #c8440f;
-            --border:  #e8e3dd;
+            --off:     var(--surface-2);
+            --white:   var(--surface);
+            --dark:    var(--ink);
+            --accent:  var(--primary);
+            --border:  var(--line);
         }
 
         html, body { height: 100%; }
@@ -61,7 +64,7 @@
             width: 32px;
             height: 32px;
             border-radius: 8px;
-            background: linear-gradient(135deg, #c8440f 0%, #e8623a 100%);
+            background: var(--primary);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -233,7 +236,7 @@
         }
 
         .stat-card.accent-card {
-            background: linear-gradient(135deg, rgba(200,68,15,0.08) 0%, rgba(232,98,58,0.05) 100%);
+            background: var(--primary-50);
             border-color: var(--accent);
         }
 
@@ -333,7 +336,7 @@
             width: 32px;
             height: 32px;
             border-radius: 6px;
-            background: linear-gradient(135deg, #c8440f 0%, #e8623a 100%);
+            background: var(--primary);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -561,6 +564,10 @@
                 <a href="{{ route('admin.withdrawals') }}" class="nav-item {{ request()->routeIs('admin.withdrawals') ? 'active' : '' }}">
                     <div class="nav-icon"><i class="mdi mdi-bank-transfer-out"></i></div>
                     <span>Withdrawals</span>
+                </a>
+                <a href="{{ route('admin.frames') }}" class="nav-item {{ request()->routeIs('admin.frames') ? 'active' : '' }}">
+                    <div class="nav-icon"><i class="mdi mdi-image-frame"></i></div>
+                    <span>Frames</span>
                 </a>
             </nav>
 

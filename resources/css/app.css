@@ -2,6 +2,11 @@
 @import '@mdi/font/css/materialdesignicons.css';
 @import './animation.css';
 
+/* Design system — tokens + `.ds`-scoped components. See resources/css/theme.css.
+   Class-scoped selectors outrank Tailwind's element-level preflight, so the
+   import order below is safe. */
+@import './theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

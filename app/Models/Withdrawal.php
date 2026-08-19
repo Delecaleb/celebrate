@@ -11,6 +11,10 @@ class Withdrawal extends Model
     protected $fillable = [
         'user_id',
         'bank_account_id',
+        // As on WalletTransaction: the column exists and WithdrawalController
+        // passes it, but it was not fillable, so every payout lost the record of
+        // which wallet it came out of.
+        'wallet_type',
         'bank_name',
         'bank_account_number',
         'bank_account_name',

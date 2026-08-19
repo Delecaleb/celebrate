@@ -9,23 +9,24 @@ class CheckoutService
     public function __construct(
         private StripeService   $stripe,
         private PaystackService $paystack,
-        private CurrencyService $currency,
     ) {}
 
     /**
-     * Route a payment to the correct gateway based on the user's currency.
+     * Route a payment to the correct gateway based on the requested currency.
      *
-     * USD users → Stripe (returns client_secret for frontend).
-     * All others → Paystack (returns authorization_url for redirect).
+     * USD → Stripe (returns client_secret for frontend).
+     * All others (e.g. NGN) → Paystack (returns authorization_url for redirect).
      *
-     * @param  float $amount  Amount in the user's base currency (USD)
+     * @param  User   $user     The recipient user (celebration owner)
+     * @param  float  $amount   Amount in the payment currency (no conversion)
+     * @param  string $currency The payment currency (USD or local currency)
      * @return array{provider: string, currency: string, ...}
      */
-    public function process(User $user, float $amount, array $metadata = []): array
+    public function process(User $user, float $amount, string $currency, array $metadata = []): array
     {
-        $userCurrency = $this->currency->forUser($user);
+        $currency = strtoupper($currency);
 
-        if (strtoupper($userCurrency) === 'USD') {
+        if ($currency === 'USD') {
             $clientSecret = $this->stripe->createPaymentIntent($amount, 'USD', $metadata);
 
             return [
@@ -35,13 +36,12 @@ class CheckoutService
             ];
         }
 
-        // Convert base amount (USD) to user's local currency for Paystack
-        $localAmount = $this->currency->convert($amount, config('currency.base'), $userCurrency);
-        $txn         = $this->paystack->initTransaction($localAmount, $userCurrency, $metadata);
+        // Use Paystack directly in the requested local currency with no conversion
+        $txn = $this->paystack->initTransaction($amount, $currency, $metadata);
 
         return [
             'provider'          => 'paystack',
-            'currency'          => $userCurrency,
+            'currency'          => $currency,
             'authorization_url' => $txn['authorization_url'],
             'reference'         => $txn['reference'],
         ];
