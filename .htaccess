@@ -1,3 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CelebrateMi — served from the project root
+#
+# index.php sits here rather than in public/, so the web root is the whole
+# codebase. Two consequences, both handled below:
+#
+#   1. Everything private is now inside the web root and has to be refused by
+#      hand. Without the deny block, https://…/.env hands out APP_KEY, the
+#      database password and both gateway secrets.
+#   2. The static files did NOT move. They are still under public/, so any
+#      request whose file exists there is served from there — which is why
+#      asset() URLs like /images/hero/hero-tall.webp keep working untouched.
+#
+# The deny rules come first on purpose: they must win before anything is
+# rewritten or served.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ══ 1. Nothing private is reachable over HTTP ═══════════════════════════════
+
+# Dotfiles: .env, .env.production, .htaccess itself.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Dot-DIRECTORIES, which the rule above does not cover — it matches the
+# filename, so /.git/config sailed straight through it and handed out the
+# whole repository, .env history included.
+#
+# .well-known is the one exception: Let's Encrypt writes its ACME challenge
+# there, and blocking it means certificates cannot renew.
+RedirectMatch 404 "(^|/)\.(?!well-known/)"
+
+# Project files that describe or run the app rather than serve it.
+<FilesMatch "(?i)^(artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|vite\.config\.js|tailwind\.config\.js|postcss\.config\.js|.*\.md)$">
+    Require all denied
+</FilesMatch>
+
+# Directories that must never be browsable.
+RedirectMatch 404 "^/(app|bootstrap|config|database|node_modules|project-details|resources|routes|sample-ui|tests|vendor)(/|$)"
+
+# storage/ is the awkward one, because two different trees answer to that URL:
+#
+#   /storage/covers/x.jpg   → public/storage → storage/app/public   ← must work
+#   /storage/logs/…         → storage/logs                          ← must not
+#
+# Every avatar, gift artwork and cover photo is served by the first, so the
+# whole prefix cannot simply be refused. Naming the private halves is what
+# keeps both true.
+RedirectMatch 404 "^/storage/(app|framework|logs)(/|$)"
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
@@ -13,12 +63,25 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # ══ 2. Static files still live in public/ ═══════════════════════════════
+    #
+    # Only rewrites when the file genuinely exists under public/, so routes
+    # that look like files — /sitemap.xml and /robots.txt are both generated
+    # by SitemapController — still reach the front controller.
+    #
+    # Assumes the web root is this directory. If the app is ever served from a
+    # subfolder instead, DOCUMENT_ROOT stops matching and this rule goes quiet;
+    # use public/ as the web root in that case.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
-    # Send Requests To Front Controller...
+    # ══ 3. Everything else is a route ═══════════════════════════════════════
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
