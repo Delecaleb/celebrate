@@ -364,7 +364,7 @@
     <!-- Right: photo -->
     <div class="panel-right">
         <img
-            src="{{ asset('images/covers/baby-shower.webp') }}"
+            src="{{ asset('images/hero/hero-wide.webp') }}"
             alt="A woman at her baby shower, friends gathered around her chair"
             loading="eager" decoding="async"
         >

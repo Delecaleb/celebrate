@@ -358,8 +358,8 @@
 
     <div class="panel-right">
         <img
-            src="{{ \App\Support\StoryLibrary::photo($voice['cover'] ?? 'grandma-birthday', 1000, 1400) }}"
-            alt="Three generations of a family gathered around the birthday celebrant"
+            src="{{ asset('images/hero/hero-short.webp') }}"
+            alt="A woman at her baby shower, friends gathered around her chair"
             loading="eager" decoding="async"
         >
 
@@ -368,9 +368,7 @@
                 I woke up on my birthday to three hundred messages from people I had not
                 heard from in twenty years.
             </blockquote>
-            <p class="photo-quote-by">
-                {{ $voice['quote_by'] ?? 'Folake A.' }} — {{ $voice['quote_meta'] ?? 'Her 50th · Lagos' }}
-            </p>
+            
             <p class="photo-quote-meta">Your page is still there. Let's get you back in.</p>
         </div>
     </div>

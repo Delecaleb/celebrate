@@ -32,7 +32,15 @@ class MainController extends Controller
      * birthday, one wedding whose guests were scattered, and one made for
      * somebody else — the three reasons people arrive here.
      */
-    private const HOME_VOICES = ['adaeze-at-30', 'chidi-and-amaka', 'sarahs-mum-at-60'];
+    /**
+     * The three stories quoted on the home page: a birthday, a wedding and a
+     * long marriage, so the section is not three versions of one occasion.
+     *
+     * pick() drops a slug it cannot find, so a story removed from the roster
+     * leaves a hole in the grid rather than an error. StoriesTest asserts all
+     * three still resolve.
+     */
+    private const HOME_VOICES = ['adaeze-at-30', 'chidi-and-amaka', 'yusuf-and-halima-25'];
 
     /**
      * The home page FAQ, as data.

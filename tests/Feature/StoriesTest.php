@@ -22,11 +22,29 @@ class StoriesTest extends TestCase
         return app(StoryLibrary::class);
     }
 
+    public function test_every_story_has_artwork_nobody_else_uses(): void
+    {
+        // The roster is sized by the artwork: one story per cover, one per
+        // avatar. Sharing a picture between two stories makes a page of nine
+        // read as a page of five.
+        $stories = $this->library()->all();
+
+        foreach (['cover', 'avatar'] as $field) {
+            $used = array_column($stories, $field);
+
+            $this->assertSame(
+                count($used),
+                count(array_unique($used)),
+                "Two stories share a {$field}: " . implode(', ', array_diff_assoc($used, array_unique($used)))
+            );
+        }
+    }
+
     public function test_the_index_renders_every_story(): void
     {
         $stories = $this->library()->all();
 
-        $this->assertCount(36, $stories);
+        $this->assertNotEmpty($stories);
 
         $response = $this->get(route('stories'));
         $response->assertOk();
@@ -82,7 +100,15 @@ class StoriesTest extends TestCase
         $response = $this->get(route('home'));
         $response->assertOk();
 
-        foreach (['adaeze-at-30', 'chidi-and-amaka', 'sarahs-mum-at-60'] as $slug) {
+        // Read from the controller rather than repeating the list: pick() drops
+        // a slug it cannot find, so trimming the roster would otherwise leave
+        // the voices grid quietly a column short.
+        $voices = (new \ReflectionClass(\App\Http\Controllers\MainController::class))
+            ->getConstant('HOME_VOICES');
+
+        $this->assertCount(3, $voices);
+
+        foreach ($voices as $slug) {
             $story = $this->library()->find($slug);
 
             $this->assertNotNull($story, "{$slug} is quoted on the home page but no longer exists");
@@ -113,13 +139,19 @@ class StoriesTest extends TestCase
         $this->assertDatabaseCount('comments', 0);
     }
 
-    public function test_the_names_keep_their_intended_spread(): void
+    public function test_the_roster_covers_a_spread_of_occasions(): void
     {
-        $regions = array_count_values(array_column($this->library()->all(), 'region'));
+        // Nine stories that were all birthdays would say the platform is for
+        // birthdays. What the roster has to protect now is the range of
+        // reasons somebody makes a page, not the old 60/20/20 geography —
+        // that went when the roster was cut to one story per photograph.
+        $occasions = array_unique(array_column($this->library()->all(), 'occasion'));
 
-        $this->assertSame(22, $regions['nigeria']);   // 60%
-        $this->assertSame(7, $regions['africa']);     // 20%
-        $this->assertSame(7, $regions['global']);     // 20%
+        $this->assertGreaterThanOrEqual(6, count($occasions));
+
+        foreach (['birthday', 'wedding', 'graduation'] as $staple) {
+            $this->assertContains($staple, $occasions);
+        }
     }
 
     /**
