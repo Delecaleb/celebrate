@@ -80,20 +80,8 @@
     }
     .lead strong { color: var(--ink); font-weight: 700; }
 
-    .eyebrow {
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        padding: 0.42rem 0.95rem 0.42rem 0.7rem;
-        border-radius: var(--r-pill);
-        background: var(--primary-50);
-        color: var(--primary-700);
-        font-size: 0.79rem; font-weight: 700; letter-spacing: -0.005em;
-    }
-    .eyebrow i { font-size: 1.05rem; color: var(--primary); }
-    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
-
     .section-head { max-width: 660px; }
     .section-head.is-centred { margin-left: auto; margin-right: auto; text-align: center; }
-    .section-head .eyebrow { margin-bottom: 1.35rem; }
     .section-head .lead { margin-top: 1.15rem; }
 
     /* ══ BUTTONS ═══════════════════════════════════════════════════════ */
@@ -527,6 +515,27 @@
         font-size: 0.85rem; font-weight: 700; color: var(--ink-700);
     }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+    /* Occasion picker — icon tiles in place of a <select> */
+    .occasion-grid { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+    .occasion-tile {
+        flex: 1 1 calc(33.333% - 0.4rem); min-width: 104px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem;
+        padding: 0.95rem 0.6rem;
+        font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--ink-700); text-align: center;
+        background: var(--surface);
+        border: 1.5px solid var(--line); border-radius: var(--r-sm);
+        cursor: pointer;
+        transition: border-color 0.16s, background 0.16s, color 0.16s, box-shadow 0.16s, transform 0.16s;
+    }
+    .occasion-tile i { font-size: 1.5rem; line-height: 1; color: var(--muted); transition: color 0.16s; }
+    .occasion-tile:hover { border-color: var(--primary-200); background: var(--primary-50); transform: translateY(-2px); }
+    .occasion-tile:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-100); }
+    .occasion-tile.is-on {
+        border-color: var(--primary); background: var(--primary-50); color: var(--primary-700);
+        box-shadow: 0 0 0 3px var(--primary-100);
+    }
+    .occasion-tile.is-on i { color: var(--primary); }
     .input {
         display: block; width: 100%;
         padding: 0.9rem 1.05rem;

@@ -141,31 +141,34 @@ class Celebration extends Model
      *
      * Assumes $this->gifts has already been eager-loaded with platformGift.
      */
-    public function sidebarGifts(Collection $platformGifts, int $limit = 6): Collection
+    /**
+     * The gifts this celebration has actually been sent.
+     *
+     * Only paid ones, and only ones that really arrived: the wall used to pad
+     * itself out with suggestions from the catalogue, which made a page with
+     * nothing received look like a page with six gifts on it — and gave every
+     * one of them a price of zero.
+     *
+     * Most-received first, so the wall leads with what people actually chose.
+     */
+    public function sidebarGifts(int $limit = 24): Collection
     {
-        // Group confirmed gifts by the platform gift they represent
-        $received = $this->gifts
+        return $this->gifts
             ->where('payment_status', 'paid')
             ->whereNotNull('platform_gift_id')
             ->groupBy('platform_gift_id')
             ->map(fn ($group) => (object) [
-                'gift'     => $group->first()->platformGift,
+                // loadMissing so the wall can price a gift in the visitor's
+                // currency without a query per tile.
+                'gift'     => $group->first()->platformGift?->loadMissing('prices'),
                 'totalUsd' => (float) $group->sum('amount'),
-                'count'    => $group->count(),
+                // Items, not rows: one send of three cupcake boxes is three
+                // cupcake boxes on the wall, not one.
+                'count'    => (int) $group->sum(fn ($g) => max(1, (int) $g->quantity)),
             ])
-            ->values();
-
-        // Fill the remaining slots with suggested gifts that haven't been received yet
-        $usedIds     = $received->pluck('gift.id')->filter();
-        $suggestions = $platformGifts
-            ->whereNotIn('id', $usedIds)
-            ->take(max(0, $limit - $received->count()))
-            ->map(fn ($g) => (object) [
-                'gift'     => $g,
-                'totalUsd' => 0.0,
-                'count'    => 0,
-            ]);
-
-        return $received->concat($suggestions)->take($limit);
+            ->filter(fn ($item) => $item->gift !== null)
+            ->sortByDesc('count')
+            ->values()
+            ->take($limit);
     }
 }

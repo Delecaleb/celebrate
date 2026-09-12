@@ -1,0 +1,25 @@
+{
+    "name": "CelebrateMi",
+    "short_name": "CelebrateMi",
+    "description": "Create your celebration page in 30 seconds. Collect wishes, voice notes, photos and cash gifts from everyone who loves you — on one link that never disappears.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#16121f",
+    "theme_color": "#7c3aed",
+    "lang": "en",
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}

@@ -2,21 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ResolvesBankAccounts;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BankAccountResource;
 use App\Models\BankAccount;
+use App\Services\PaymentSystem\PaystackService;
 use Illuminate\Http\Request;
 
 /**
- * Payout accounts. Same validation as the web controller, JSON in and out.
+ * Payout accounts. Same verification as the web controller, JSON in and out:
+ * the account name is whatever the bank says it is, never what the client sent.
  */
 class BankAccountController extends Controller
 {
-    private const RULES = [
-        'bank_name'      => ['required', 'string', 'max:100'],
-        'account_number' => ['required', 'string', 'size:10', 'regex:/^[0-9]{10}$/'],
-        'account_name'   => ['required', 'string', 'max:150'],
-    ];
+    use ResolvesBankAccounts;
 
     public function index(Request $request)
     {
@@ -25,12 +24,34 @@ class BankAccountController extends Controller
         );
     }
 
+    /**
+     * The banks we can pay into — name and code, for the app's bank picker.
+     */
+    public function banks(PaystackService $paystack)
+    {
+        return response()->json(['data' => $paystack->banks()]);
+    }
+
+    /**
+     * Look up the name on an account so the app can show it before saving.
+     */
+    public function resolve(Request $request)
+    {
+        $verified = $this->verifiedBankPayload($request->validate($this->bankAccountRules()));
+
+        return response()->json([
+            'bank_name'    => $verified['bank_name'],
+            'account_name' => $verified['account_name'],
+            'verified'     => $verified['is_verified'],
+        ]);
+    }
+
     public function store(Request $request)
     {
-        $data = $request->validate(self::RULES);
+        $data = $request->validate($this->bankAccountRules());
         $user = $request->user();
 
-        $account = $user->bankAccounts()->create($data + [
+        $account = $user->bankAccounts()->create($this->verifiedBankPayload($data) + [
             // The first account you add becomes the one you get paid into.
             'is_default' => $user->bankAccounts()->count() === 0,
         ]);
@@ -42,7 +63,9 @@ class BankAccountController extends Controller
     {
         $this->authorizeOwner($request, $bankAccount);
 
-        $bankAccount->update($request->validate(self::RULES));
+        $bankAccount->update(
+            $this->verifiedBankPayload($request->validate($this->bankAccountRules()))
+        );
 
         return new BankAccountResource($bankAccount->fresh());
     }

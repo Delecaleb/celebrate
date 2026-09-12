@@ -9,6 +9,7 @@ import './modules/alert-message';       // Global showAlert() helper
 import './modules/add_cover_img';       // Cover photo upload handler
 import './modules/submit_comment';      // wishForm() Alpine component
 import './modules/giftPlate';               // giftPlate() Alpine component
+import './modules/giftConfetti';            // giftConfetti() — the gift celebration
 import './modules/wishlistForm';            // wishlistForm() Alpine component
 import './modules/wishContributionModal';   // wishContributionModal() Alpine component
 import './modules/celebrationCustomizer'; // celebrationCustomizer() Alpine component

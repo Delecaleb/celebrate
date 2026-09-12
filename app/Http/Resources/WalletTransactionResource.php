@@ -18,6 +18,8 @@ class WalletTransactionResource extends JsonResource
             // description; do the same here so the client renders no blanks.
             'description' => $this->description ?: ($this->type === 'credit' ? 'Credit received' : 'Debit'),
             'reference'   => $this->reference,
+            // Null for a top-up or a withdrawal — nobody gave those.
+            'from'        => $this->giverName(),
             'created_at'  => $this->created_at?->toIso8601String(),
         ];
     }

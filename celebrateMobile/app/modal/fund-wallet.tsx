@@ -25,8 +25,12 @@ export default function FundWallet() {
   const { data: balances } = useQuery({ queryKey: ['wallet', 'balances'], queryFn: wallet.balances });
 
   const [amount, setAmount] = useState('');
-  const [walletType, setWalletType] = useState<'local' | 'global'>('local');
+  const [selectedWallet, setSelectedWallet] = useState<'local' | 'global'>('local');
   const [flash, setFlash] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null);
+
+  // Where USD checkout works there is no local wallet to choose between.
+  const hasLocalWallet = balances?.has_local_wallet ?? false;
+  const walletType = hasLocalWallet ? selectedWallet : 'global';
 
   const symbol = walletType === 'global' ? '$' : (balances?.symbol ?? '');
   const currency = walletType === 'global' ? 'USD' : (balances?.currency ?? '');
@@ -72,23 +76,27 @@ export default function FundWallet() {
     >
       {flash ? <Flash kind={flash.kind} message={flash.message} /> : null}
 
-      <Txt variant="tiny" color={colors.muted} style={{ marginBottom: 8, letterSpacing: 0.4 }}>
-        WHICH WALLET
-      </Txt>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }}>
-        <WalletOption
-          label={`Local (${balances?.currency ?? '—'})`}
-          balance={money(balances?.local ?? 0, balances?.symbol ?? '')}
-          selected={walletType === 'local'}
-          onPress={() => setWalletType('local')}
-        />
-        <WalletOption
-          label="Global (USD)"
-          balance={money(balances?.global ?? 0, '$')}
-          selected={walletType === 'global'}
-          onPress={() => setWalletType('global')}
-        />
-      </View>
+      {hasLocalWallet ? (
+        <>
+          <Txt variant="tiny" color={colors.muted} style={{ marginBottom: 8, letterSpacing: 0.4 }}>
+            WHICH WALLET
+          </Txt>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }}>
+            <WalletOption
+              label={`Local (${balances?.currency ?? '—'})`}
+              balance={money(balances?.local ?? 0, balances?.symbol ?? '')}
+              selected={walletType === 'local'}
+              onPress={() => setSelectedWallet('local')}
+            />
+            <WalletOption
+              label="Global (USD)"
+              balance={money(balances?.global ?? 0, '$')}
+              selected={walletType === 'global'}
+              onPress={() => setSelectedWallet('global')}
+            />
+          </View>
+        </>
+      ) : null}
 
       <Field
         label={`Amount (${currency})`}

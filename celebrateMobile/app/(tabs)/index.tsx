@@ -92,8 +92,12 @@ export default function EventsScreen() {
             <StatCard
               icon="wallet-outline"
               label="Wallet balance"
-              value={money(s.wallet.local, s.wallet.symbol)}
-              sub={s.wallet.currency !== 'USD' ? `Global ${money(s.wallet.global, '$')}` : 'available balance'}
+              value={
+                s.wallet.has_local_wallet
+                  ? money(s.wallet.local, s.wallet.symbol)
+                  : money(s.wallet.global, '$')
+              }
+              sub={s.wallet.has_local_wallet ? `Global ${money(s.wallet.global, '$')}` : 'available balance'}
               accent={colors.ok}
             />
           </View>

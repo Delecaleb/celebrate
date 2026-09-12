@@ -8,6 +8,7 @@
 import { del, fileField, get, patch, post, postForm, put } from './client';
 import type {
   AuthResponse,
+  Bank,
   BankAccount,
   Celebration,
   CelebrationPage,
@@ -18,6 +19,7 @@ import type {
   Notification,
   Paginated,
   Reply,
+  ResolvedAccount,
   User,
   VerifyResult,
   WalletBalances,
@@ -231,9 +233,20 @@ export const wallet = {
 
 export const bankAccounts = {
   list: () => get<Wrapped<BankAccount[]>>('/bank-accounts'),
-  create: (body: { bank_name: string; account_number: string; account_name: string }) =>
+
+  /** Banks we can pay into — the picker in add-bank is built from this. */
+  banks: () => get<Wrapped<Bank[]>>('/bank-accounts/banks'),
+
+  /**
+   * Ask the bank who owns an account. The name it returns is the only one the
+   * API will store, so the form shows it rather than asking anyone to type it.
+   */
+  resolve: (body: { bank_code: string; account_number: string }) =>
+    post<ResolvedAccount>('/bank-accounts/resolve', body),
+
+  create: (body: { bank_code: string; account_number: string }) =>
     post<Wrapped<BankAccount>>('/bank-accounts', body),
-  update: (id: number, body: { bank_name: string; account_number: string; account_name: string }) =>
+  update: (id: number, body: { bank_code: string; account_number: string }) =>
     put<Wrapped<BankAccount>>(`/bank-accounts/${id}`, body),
   destroy: (id: number) => del<{ message: string }>(`/bank-accounts/${id}`),
   setDefault: (id: number) => patch<Wrapped<BankAccount>>(`/bank-accounts/${id}/default`),

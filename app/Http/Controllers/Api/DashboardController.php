@@ -133,15 +133,21 @@ class DashboardController extends Controller
     }
 
     /**
-     * Both balances, plus the symbol the client formats with.
+     * The balances, plus the symbol the client formats with.
+     *
+     * A USD user has one wallet — the global one — so `local` comes back 0 and
+     * `has_local_wallet` tells the client not to show it.
      */
     private function balances($user, string $userCurrency): array
     {
+        $hasLocalWallet = $this->wallet->hasLocalWallet($user);
+
         return [
-            'currency' => $userCurrency,
-            'symbol'   => config("currency.currencies.{$userCurrency}.symbol", $userCurrency),
-            'local'    => round($this->wallet->balance($user, 'local'), 2),
-            'global'   => round($this->wallet->balance($user, 'global'), 2),
+            'currency'         => $userCurrency,
+            'symbol'           => config("currency.currencies.{$userCurrency}.symbol", $userCurrency),
+            'has_local_wallet' => $hasLocalWallet,
+            'local'            => $hasLocalWallet ? round($this->wallet->balance($user, 'local'), 2) : 0.0,
+            'global'           => round($this->wallet->balance($user, 'global'), 2),
         ];
     }
 }

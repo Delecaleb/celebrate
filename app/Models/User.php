@@ -36,6 +36,7 @@ class User extends Authenticatable
         'wallet_balance',
         'global_wallet_balance',
         'last_seen_at',
+        'email_notifications_enabled',
     ];
 
     protected $guarded = ['currency'];
@@ -50,7 +51,37 @@ class User extends Authenticatable
         'last_seen_at'      => 'datetime',
         'wallet_balance'    => 'decimal:2',
         'global_wallet_balance' => 'decimal:2',
+        'email_notifications_enabled' => 'boolean',
     ];
+
+    /**
+     * The uploaded avatar, ready to put in a src.
+     *
+     * The celebration page has been asking for this for a while — it reads
+     * profile_photo_url on a comment's author — but the accessor never
+     * existed, so a signed-in wisher's photo silently never showed.
+     */
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        return $this->profile_photo
+            ? asset('storage/' . $this->profile_photo)
+            : null;
+    }
+
+    /** What stands in for a photo: up to two letters, never blank. */
+    public function initials(): string
+    {
+        $letters = mb_strtoupper(
+            mb_substr(trim((string) $this->first_name), 0, 1) .
+            mb_substr(trim((string) $this->last_name), 0, 1)
+        );
+
+        if ($letters !== '') {
+            return $letters;
+        }
+
+        return mb_strtoupper(mb_substr((string) $this->email, 0, 1)) ?: 'U';
+    }
 
     public function celebrations()
     {

@@ -381,12 +381,7 @@ class WishController extends Controller
     private function withDisplay(Wish $wish, string $currency): Wish
     {
         $wish->displayTarget  = $wish->displayAmount($currency);
-        $rate = (float) ($wish->conversion_rate ?? 1);
-        $wish->displayCurrent = match (true) {
-            $currency === $wish->base_currency                       => (float) $wish->current_amount,
-            $currency === $wish->converted_currency && $rate > 0     => round((float) $wish->current_amount * $rate, 2),
-            default                                                  => (float) $wish->current_amount,
-        };
+        $wish->displayCurrent = $wish->raisedIn($currency);
 
         return $wish;
     }

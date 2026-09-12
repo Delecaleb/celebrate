@@ -4,6 +4,10 @@
  * Opens when any wish card dispatches the 'open-wish' window event.
  * Steps: detail → contribute → success
  */
+import { postJson, failureMessage } from './http';
+import { loadPaystack, payInline } from './paystackInline';
+import { giftConfetti } from './giftConfetti';
+
 export function wishContributionModal(config) {
     return {
         // ── state ──────────────────────────────────────────────────────────
@@ -29,6 +33,7 @@ export function wishContributionModal(config) {
         isOwner:          config.isOwner,
         walletBaseUrl:    config.walletBaseUrl,
         payBaseUrl:       config.payBaseUrl,
+        confirmUrl:       config.confirmUrl,
         csrfToken:        config.csrfToken,
 
         // ── derived ────────────────────────────────────────────────────────
@@ -164,32 +169,101 @@ export function wishContributionModal(config) {
             this.error   = '';
 
             try {
-                const url  = `${this.payBaseUrl}/${this.wish.id}/contribute/pay`;
-                const res  = await fetch(url, {
-                    method:  'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'Accept':       'application/json',
-                    },
-                    body: JSON.stringify({
+                const { res, data, token } = await postJson(
+                    `${this.payBaseUrl}/${this.wish.id}/contribute/pay`,
+                    {
                         amount:      this.amount,
                         currency:    this.visitorCurrency,
                         message:     this.note,
                         guest_name:  this.isAuthenticated ? null : this.guestName.trim(),
                         guest_email: this.isAuthenticated ? null : this.guestEmail.trim(),
-                    }),
-                });
+                    },
+                    this.csrfToken
+                );
 
-                const data = await res.json();
+                this.csrfToken = token;
 
-                if (data.success && data.authorization_url) {
+                if (! data?.success) {
+                    this.error   = failureMessage(res, data, 'Could not start payment. Please try again.');
+                    this.loading = false;
+
+                    return;
+                }
+
+                // Naira pays in place. Stripe still redirects, and so does
+                // Paystack if its script could not be fetched.
+                if (data.provider === 'paystack' && data.access_code && await loadPaystack()) {
+                    await this.payWithPaystack(data.access_code, data.reference);
+
+                    return;
+                }
+
+                if (data.authorization_url) {
                     window.location.href = data.authorization_url;
+
+                    return;
+                }
+
+                this.error   = 'Could not start payment. Please try again.';
+                this.loading = false;
+            } catch {
+                this.error   = 'Network error. Please try again.';
+                this.loading = false;
+            }
+        },
+
+        /** Card details go into Paystack's own frame, never this page. */
+        async payWithPaystack(accessCode, reference) {
+            const result = await payInline(accessCode);
+
+            if (result.outcome === 'cancelled') {
+                this.error   = 'Payment cancelled. Nothing has been charged.';
+                this.loading = false;
+
+                return;
+            }
+
+            if (result.outcome === 'error') {
+                this.error   = result.message || 'The payment could not be completed. Please try again.';
+                this.loading = false;
+
+                return;
+            }
+
+            await this.confirmPayment(result.reference || reference);
+        },
+
+        /** Ask our server what actually happened, and act on that. */
+        async confirmPayment(reference) {
+            try {
+                const { res, data, token } = await postJson(
+                    this.confirmUrl, { reference }, this.csrfToken
+                );
+
+                this.csrfToken = token;
+
+                if (data?.success) {
+                    this.error = '';
+                    this.step  = 'success';
+
+                    await giftConfetti();
+
+                    // Reload so the registry bar shows the new total.
+                    window.location.href = data.redirect_url || window.location.href;
+
+                    return;
+                }
+
+                // 202 is paid-but-unconfirmed: the webhook and
+                // payments:reconcile finish it. Not a failure to the payer.
+                if (res.status === 202) {
+                    this.error = '';
+                    this.step  = 'success';
                 } else {
-                    this.error = data.message || 'Could not start payment.';
+                    this.error = failureMessage(res, data, 'We could not confirm that payment. Please contact support.');
                 }
             } catch {
-                this.error = 'Network error. Please try again.';
+                this.error = 'Your payment may have gone through, but we could not reach the site to confirm it. Please refresh before trying again.';
             } finally {
                 this.loading = false;
             }

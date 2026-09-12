@@ -1,4 +1,28 @@
-<x-guest-layout :title="$celebration->title . ' — ' . config('app.name')">
+@php
+    // Social card and indexing for this celebration. Computed up here because
+    // the attributes on the tag below are evaluated before anything in its body.
+    $seoCover = ($celebration->cover_photos[0] ?? null)
+        ? asset('storage/' . $celebration->cover_photos[0])
+        : ($celebration->celebrant_photo ? asset('storage/' . $celebration->celebrant_photo) : null);
+
+    $seoOccasion = strtolower(str_replace('_', ' ', $celebration->celebration_type ?? 'celebration'));
+
+    $seoDescription = $celebration->description
+        ?: "{$celebration->celebrant_name}'s {$seoOccasion} on CelebrateMi — leave a wish, add a photo or send a gift from anywhere.";
+
+    // A page its owner has not made public, or has not published, must never
+    // reach an index — the link still works for anyone who has it.
+    $seoNoindex = ! $celebration->is_public || $celebration->status !== 'published';
+@endphp
+
+<x-guest-layout
+    :title="$celebration->title . ' — ' . config('seo.name')"
+    :description="$seoDescription"
+    :ogImage="$seoCover"
+    :ogImageAlt="$celebration->title"
+    ogType="article"
+    :noindex="$seoNoindex"
+>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
@@ -153,10 +177,33 @@
     .msg-name { font-size: 0.85rem; font-weight: 700; }
     .msg-time { font-size: 0.72rem; color: var(--muted-2); }
     .msg-text { font-size: 0.92rem; line-height: 1.6; margin-top: 0.3rem; }
-    .msg-media { margin-top: 0.7rem; overflow: hidden; max-width: 300px; border: 1px solid var(--line); }
+    .msg-media { margin-top: 0.7rem; overflow: hidden; max-width: 300px; border: 1px solid var(--line); border-radius: 14px; }
     .msg-media img { width: 100%; display: block; max-height: 260px; object-fit: cover; }
 
-    .composer { border: 1px solid var(--line); padding: 0.9rem; }
+    /* ── who has given ───────────────────────────────────────────────
+       One line that flips to the next giver every few seconds, so a page
+       with two hundred givers takes the same room as one with two. It sits
+       above the wishes because it is the social proof you want read first. */
+    .give-ticker {
+        display: flex; align-items: center; gap: 0.65rem;
+        border: 1px solid var(--line); border-radius: 999px;
+        background: var(--surface-2);
+        padding: 0.5rem 1rem; margin-bottom: 1.5rem;
+    }
+    .give-ticker > i { color: var(--primary); font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
+    .give-ticker-win { position: relative; flex: 1; min-width: 0; height: 1.3rem; overflow: hidden; }
+    .give-ticker-track { position: absolute; inset: 0; transition: transform 0.55s cubic-bezier(.22,.8,.3,1); }
+    .give-ticker-track[data-still] { transition: none; }
+    .give-ticker-row {
+        height: 1.3rem; display: flex; align-items: center; gap: 0.3rem;
+        font-size: 0.84rem; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis;
+    }
+    .give-ticker-row b { font-weight: 700; }
+    .give-ticker-row span { font-weight: 800; color: var(--primary); }
+    .give-ticker-row em { font-style: normal; color: var(--muted-2); }
+
+    .composer { border: 1px solid var(--line); padding: 0.9rem; border-radius: 16px; }
     .composer textarea {
         width: 100%; border: 0; resize: none; font-family: inherit;
         font-size: 0.92rem; line-height: 1.55; background: transparent;
@@ -168,7 +215,25 @@
         margin-top: 0.5rem; padding-top: 0.65rem; border-top: 1px solid var(--line);
     }
 
-    .vid-tile { position: relative; width: 150px; aspect-ratio: 3/4; overflow: hidden; background: #000; cursor: pointer; }
+    /* The composer belongs where you finish reading, not above what you came
+       to read — so it sits at the foot of the list and stays pinned there
+       while the wishes scroll behind it. .cel-body is the scrollport on
+       desktop; on a phone that is `overflow: visible`, so the viewport takes
+       over and it docks to the bottom of the screen instead. Both are right. */
+    .composer-dock {
+        position: sticky; bottom: 0; z-index: 4;
+        margin-top: 1.75rem;
+        padding: 0.9rem 0 0.2rem;
+        background: var(--surface);
+    }
+    /* so the last wish fades out under the dock instead of being sliced off */
+    .composer-dock::before {
+        content: ''; position: absolute; left: 0; right: 0; top: -26px; height: 26px;
+        background: linear-gradient(to top, var(--surface), transparent);
+        pointer-events: none;
+    }
+
+    .vid-tile { position: relative; width: 150px; aspect-ratio: 3/4; overflow: hidden; background: #000; cursor: pointer; border-radius: 14px; }
     .vid-tile video { width: 100%; height: 100%; object-fit: cover; }
 
     /* registry — same 4-across grid as the gifts tab */
@@ -253,17 +318,35 @@
         font-size: 2.4rem; line-height: 1; letter-spacing: -0.045em;
         color: var(--primary);
     }
-    .gift-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    /* The wall of gifts this celebration has been sent. Four across on a
+       phone, six from tablet width, eight on a wide screen — the tiles stay
+       square and the artwork scales with them. */
+    .gift-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr);
+        border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+    }
+    @media (min-width: 640px)  { .gift-grid { grid-template-columns: repeat(6, 1fr); } }
+    @media (min-width: 1024px) { .gift-grid { grid-template-columns: repeat(8, 1fr); } }
+
     .gift-cell {
         position: relative; aspect-ratio: 1; background: transparent;
         display: flex; align-items: center; justify-content: center;
         border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
-        cursor: pointer; transition: background 0.14s;
+        cursor: pointer; transition: background 0.14s, transform 0.14s;
     }
-    .gift-cell:hover { background: var(--surface-2); }
-    .gift-cell img { width: 58%; height: 58%; object-fit: contain; opacity: 0.3; filter: grayscale(1); }
-    .gift-cell.is-got img { opacity: 1; filter: none; }
-    .gift-n { position: absolute; bottom: 4px; right: 5px; font-size: 0.6rem; font-weight: 800; color: var(--primary); }
+    .gift-cell:hover { background: var(--surface-2); transform: scale(1.06); }
+
+    /* Everything on this wall was actually received, so nothing is greyed out
+       any more — these are the gifts people sent, and they should look it. */
+    .gift-cell img { width: 74%; height: 74%; object-fit: contain; }
+    .gift-cell i   { font-size: clamp(1.5rem, 4.2vw, 2.1rem); line-height: 1; }
+
+    .gift-n {
+        position: absolute; bottom: 3px; right: 4px;
+        min-width: 17px; padding: 0 4px; border-radius: 999px;
+        background: var(--primary); color: #fff;
+        font-size: 0.62rem; font-weight: 800; line-height: 17px; text-align: center;
+    }
 
     /* settings */
     .set-field + .set-field { margin-top: 1rem; }
@@ -546,44 +629,73 @@
 
             {{-- ── WISHES ──────────────────────────────────────────── --}}
             <div class="cel-pad" x-show="tab === 'wishes'">
-                @unless($isOwner)
-                    <div id="composer" x-data="wishForm()" style="margin-bottom:1.5rem">
-                        <div class="composer">
-                            <div x-show="commentImagePreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
-                                <img :src="commentImagePreview" style="height:70px;border:1px solid var(--line)">
-                                <button type="button" @click="commentImage = null; commentImagePreview = ''"
-                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
-                            </div>
+              {{-- wishForm() wraps the whole tab so the composer can be sticky:
+                   a sticky element only travels within its own parent, so the
+                   parent has to be the tall thing, not the box itself. The
+                   owner has no composer, so they get the wrapper without the
+                   component. --}}
+              <div @unless($isOwner) x-data="wishForm()" @endunless>
 
-                            <div x-show="commentVideoPreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
-                                <video :src="commentVideoPreview" controls style="height:100px;border:1px solid var(--line)"></video>
-                                <button type="button" @click="clearVideo()"
-                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
-                            </div>
+                {{-- ── who has given ──────────────────────────────────── --}}
+                @if ($supporters->isNotEmpty())
+                    @php
+                        // Newest first, which is what the controller already
+                        // sorts by — the line reads as "who just gave".
+                        $ticker = $supporters->take(24)->map(fn ($s) => [
+                            'name'   => $s->name,
+                            'amount' => $visitorSymbol . number_format(
+                                $s->total,
+                                fmod((float) $s->total, 1) === 0.0 ? 0 : 2
+                            ),
+                        ])->values();
+                    @endphp
 
-                            <form @submit.prevent="handleSubmit">
-                                <textarea x-model="message" rows="2"
-                                          placeholder="Write {{ $celebration->celebrant_name }} a message…"></textarea>
-                                <div class="composer-tools">
-                                    <button type="button" class="ibtn ibtn-bare" @click="openVideoRecorder()" aria-label="Record video">
-                                        <i class="mdi mdi-video-outline"></i>
-                                    </button>
-                                    <label for="imageUpload" class="ibtn ibtn-bare cursor-pointer" aria-label="Add photo">
-                                        <i class="mdi mdi-image-outline"></i>
-                                    </label>
-                                    <input hidden type="file" id="imageUpload" accept="image/*" @change="handleCommentImageUpload($event)">
-                                    <button type="submit" :disabled="loading" class="btn btn-primary btn-sm" style="margin-left:auto">
-                                        <i class="mdi" :class="loading ? 'mdi-loading mdi-spin' : 'mdi-send'"></i>
-                                        <span x-text="loading ? 'Sending…' : 'Send'"></span>
-                                    </button>
-                                </div>
-                            </form>
+                    <div class="give-ticker"
+                         x-data="{
+                            rows: {{ Js::from($ticker) }},
+                            i: 0,
+                            still: false,
+                            init() {
+                                if (this.rows.length < 2) return;
+
+                                // A copy of the first row at the end means the
+                                // wrap is never seen as a rewind.
+                                this.rows = [...this.rows, this.rows[0]];
+                                setInterval(() => this.advance(), 3200);
+                            },
+                            advance() {
+                                this.i++;
+
+                                if (this.i < this.rows.length - 1) return;
+
+                                // Showing the copy now. Let the slide land,
+                                // then jump to the real first row with the
+                                // transition switched off.
+                                setTimeout(() => {
+                                    this.still = true;
+                                    this.i     = 0;
+                                    requestAnimationFrame(() =>
+                                        requestAnimationFrame(() => this.still = false)
+                                    );
+                                }, 600);
+                            }
+                         }">
+                        <i class="mdi mdi-gift-outline" aria-hidden="true"></i>
+                        <div class="give-ticker-win">
+                            <div class="give-ticker-track"
+                                 :data-still="still ? '' : null"
+                                 :style="`transform: translateY(-${i * 1.3}rem)`">
+                                <template x-for="(row, n) in rows" :key="n">
+                                    <div class="give-ticker-row">
+                                        <b x-text="row.name"></b>
+                                        <em>gave</em>
+                                        <span x-text="row.amount"></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
-
-                        @include('celebrations.partials.guest-modal')
-                        @include('celebrations.partials.recorder-modal')
                     </div>
-                @endunless
+                @endif
 
                 @forelse($celebration->comments as $comment)
                     @php
@@ -674,6 +786,51 @@
                         <p>{{ $isOwner ? 'Share your link to start receiving wishes.' : 'Be the first to leave a message.' }}</p>
                     </div>
                 @endforelse
+
+                @unless($isOwner)
+                    {{-- Docked to the foot of the list. The modals sit outside
+                         it — both are fixed and cloaked, so they take no room,
+                         and keeping them clear of the sticky box keeps them out
+                         of its stacking context. --}}
+                    <div id="composer" class="composer-dock">
+                        <div class="composer">
+                            <div x-show="commentImagePreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
+                                <img :src="commentImagePreview" style="height:70px;border:1px solid var(--line);border-radius:10px">
+                                <button type="button" @click="commentImage = null; commentImagePreview = ''"
+                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:999px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
+                            </div>
+
+                            <div x-show="commentVideoPreview" x-cloak style="margin-bottom:0.7rem;position:relative;display:inline-block">
+                                <video :src="commentVideoPreview" controls style="height:100px;border:1px solid var(--line);border-radius:10px"></video>
+                                <button type="button" @click="clearVideo()"
+                                        style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:999px;font-size:0.7rem;font-weight:800;color:#fff;background:var(--primary);border:0;cursor:pointer">×</button>
+                            </div>
+
+                            <form @submit.prevent="handleSubmit">
+                                <textarea x-model="message" rows="2"
+                                          placeholder="Write {{ $celebration->celebrant_name }} a message…"></textarea>
+                                <div class="composer-tools">
+                                    <button type="button" class="ibtn ibtn-bare" @click="openVideoRecorder()" aria-label="Record video">
+                                        <i class="mdi mdi-video-outline"></i>
+                                    </button>
+                                    <label for="imageUpload" class="ibtn ibtn-bare cursor-pointer" aria-label="Add photo">
+                                        <i class="mdi mdi-image-outline"></i>
+                                    </label>
+                                    <input hidden type="file" id="imageUpload" accept="image/*" @change="handleCommentImageUpload($event)">
+                                    <button type="submit" :disabled="loading" class="btn btn-primary btn-sm" style="margin-left:auto">
+                                        <i class="mdi" :class="loading ? 'mdi-loading mdi-spin' : 'mdi-send'"></i>
+                                        <span x-text="loading ? 'Sending…' : 'Send'"></span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    @include('celebrations.partials.guest-modal')
+                    @include('celebrations.partials.recorder-modal')
+                @endunless
+
+              </div>
 
                 @include('celebrations.partials.reels-modal')
             </div>
@@ -831,26 +988,46 @@
                     @if($sidebarItems->isNotEmpty())
                         <div class="gift-grid">
                             @foreach($sidebarItems as $item)
-                                <button type="button" class="gift-cell @if($item->received) is-got @endif"
-                                    title="{{ $item->gift?->gift_name ?? 'Gift' }}"
+                                {{-- Every tile here was received, so the class
+                                     is unconditional now. --}}
+                                <button type="button" class="gift-cell is-got"
+                                    title="{{ $item->gift?->gift_name }}{{ $item->count > 1 ? " ×{$item->count}" : '' }}"
                                     @click="$dispatch('open-gift-detail', {
                                         id:       {{ $item->gift->id }},
                                         name:     '{{ addslashes($item->gift->gift_name) }}',
-                                        image:    '{{ asset('storage/'.$item->gift->gift_image_url) }}',
-                                        price:    {{ round($item->displayTotal, 2) }},
+                                        image:    '{{ $item->gift->gift_image_url ? asset('storage/'.$item->gift->gift_image_url) : '' }}',
+                                        icon:     '{{ $item->gift->icon() }}',
+                                        accent:   '{{ $item->gift->accent() }}',
+                                        note:     '{{ addslashes($item->gift->gift_description ?? '') }}',
+                                        {{-- What it costs to send, not what has
+                                             already been received for it. The
+                                             panel this opens is the send-a-gift
+                                             screen, and passing the received
+                                             total showed ₦0 on every gift
+                                             nobody had sent yet. --}}
+                                        price:    {{ $item->gift->priceIn($visitorCurrency) }},
                                         priceUsd: {{ (float) $item->gift->gift_price }},
                                     })">
                                     @if($item->gift?->gift_image_url)
                                         <img src="{{ asset('storage/'.$item->gift->gift_image_url) }}" alt="">
                                     @else
-                                        <i class="mdi mdi-gift-outline" style="color: var(--muted-2)"></i>
+                                        {{-- The gift's own icon and colour, so a
+                                             wall of received gifts reads as a
+                                             wall of gifts rather than grey boxes. --}}
+                                        <i class="mdi {{ $item->gift?->icon() ?? 'mdi-gift-outline' }}"
+                                           style="color: {{ $item->gift?->accent() ?? 'var(--muted-2)' }}"></i>
                                     @endif
                                     @if($item->count > 1)<span class="gift-n">{{ $item->count }}</span>@endif
                                 </button>
                             @endforeach
                         </div>
                     @else
-                        <div class="cel-empty"><i class="mdi mdi-gift-outline"></i><p>No gifts yet.</p></div>
+                        {{-- Reached far more often now that the wall no longer
+                             pads itself with suggestions. --}}
+                        <div class="cel-empty">
+                            <i class="mdi mdi-gift-outline"></i>
+                            <p>No gifts received yet. They'll appear here as they arrive.</p>
+                        </div>
                     @endif
                 </div>
             </div>
@@ -1080,6 +1257,42 @@ $photoBookComments = $celebration->comments
         'time'      => $c->created_at->diffForHumans(),
     ])->values()->toArray();
 @endphp
+
+@if (request()->boolean('gifts'))
+    {{-- Sent here by the gift prompt on the wish-posted screen. Going through
+         a reload rather than opening the plate in place is deliberate: the new
+         wish is only drawn on a fresh load, so a visitor who opens gifts and
+         then changes their mind still ends up looking at their own message
+         instead of a wall that appears not to have taken it. --}}
+    <script>
+        document.addEventListener('alpine:initialized', () => {
+            window.dispatchEvent(new CustomEvent('open-modal', { detail: 'show-gifts' }));
+        });
+
+        if (window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('gifts');
+            window.history.replaceState({}, '', url);
+        }
+    </script>
+@endif
+
+@if (request()->boolean('gifted'))
+    {{-- Landed back here from a gateway that took the payer away (Stripe, or
+         Paystack when the inline script could not load). The inline flow
+         throws its confetti before it reloads, so it does not set this flag
+         and nobody gets the show twice. --}}
+    <script>
+        window.addEventListener('load', () => window.giftConfetti?.());
+
+        // Drop the flag so a refresh, or a shared link, does not re-celebrate.
+        if (window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('gifted');
+            window.history.replaceState({}, '', url);
+        }
+    </script>
+@endif
 
 <script>
     window.CelebrationConfig = {

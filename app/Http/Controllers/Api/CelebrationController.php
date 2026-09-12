@@ -84,21 +84,20 @@ class CelebrationController extends Controller
         $totalRaised = $paidGifts->sum(fn ($g) => $toViewer($g->amount, $g->currency))
             + $paidContributions->sum(fn ($c) => $toViewer($c->amount, $c->currency));
 
-        $platformGifts = PlatformAvailableGift::where('is_active', true)->get()
+        $platformGifts = PlatformAvailableGift::active()->with('prices')->ordered()->get()
             ->each(function ($gift) use ($viewerCurrency) {
-                $gift->displayPrice = round(
-                    $this->currency->convert((float) $gift->gift_price, 'USD', $viewerCurrency), 2
-                );
+                $gift->displayPrice = $gift->priceIn($viewerCurrency);
             });
 
-        $wishes = $celebration->wishes->each(function ($wish) use ($viewerCurrency) {
-            $wish->displayTarget = $wish->displayAmount($viewerCurrency);
-            $rate = (float) ($wish->conversion_rate ?? 1);
-            $wish->displayCurrent = match (true) {
-                $viewerCurrency === $wish->base_currency                       => (float) $wish->current_amount,
-                $viewerCurrency === $wish->converted_currency && $rate > 0     => round((float) $wish->current_amount * $rate, 2),
-                default                                                        => (float) $wish->current_amount,
-            };
+        $paidByWish = $paidContributions->groupBy('wish_id');
+
+        $wishes = $celebration->wishes->each(function ($wish) use ($viewerCurrency, $paidByWish) {
+            $wish->displayTarget  = $wish->displayAmount($viewerCurrency);
+            $wish->displayCurrent = $wish->raisedIn(
+                $viewerCurrency,
+                $this->currency,
+                $paidByWish->get($wish->id, collect())
+            );
         });
 
         $countdownDate = $celebration->end_date ?? $celebration->start_date;

@@ -38,7 +38,7 @@ export default function Withdraw() {
       withdrawals.create({
         amount: parseFloat(amount),
         bank_account_id: accountId!,
-        wallet_type: walletType,
+        wallet_type: balances.data?.has_local_wallet ? walletType : 'global',
       }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
@@ -74,8 +74,10 @@ export default function Withdraw() {
   }
 
   const b = balances.data!;
-  const available = walletType === 'global' ? b.global : b.local;
-  const symbol = walletType === 'global' ? '$' : b.symbol;
+  // Where USD checkout works there is only the global wallet to draw on.
+  const activeWallet = b.has_local_wallet ? walletType : 'global';
+  const available = activeWallet === 'global' ? b.global : b.local;
+  const symbol = activeWallet === 'global' ? '$' : b.symbol;
 
   function submit() {
     const value = parseFloat(amount);
@@ -86,7 +88,11 @@ export default function Withdraw() {
     }
 
     if (value > available) {
-      setFlash(`That's more than your ${walletType} balance of ${money(available, symbol)}.`);
+      setFlash(
+        b.has_local_wallet
+          ? `That's more than your ${activeWallet} balance of ${money(available, symbol)}.`
+          : `That's more than your balance of ${money(available, symbol)}.`,
+      );
       return;
     }
 
@@ -102,32 +108,36 @@ export default function Withdraw() {
     >
       {flash ? <Flash kind="error" message={flash} /> : null}
 
-      <Txt variant="tiny" color={colors.muted} style={{ marginBottom: 8, letterSpacing: 0.4 }}>
-        FROM WHICH WALLET
-      </Txt>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }}>
-        {(['local', 'global'] as const).map((t) => {
-          const selected = walletType === t;
-          const value = t === 'global' ? b.global : b.local;
+      {b.has_local_wallet ? (
+        <>
+          <Txt variant="tiny" color={colors.muted} style={{ marginBottom: 8, letterSpacing: 0.4 }}>
+            FROM WHICH WALLET
+          </Txt>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }}>
+            {(['local', 'global'] as const).map((t) => {
+              const selected = walletType === t;
+              const value = t === 'global' ? b.global : b.local;
 
-          return (
-            <Pressable
-              key={t}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
-              onPress={() => setWalletType(t)}
-              style={[styles.option, selected && { borderColor: colors.primary, backgroundColor: colors.primaryFaint }]}
-            >
-              <Txt variant="small" style={{ fontWeight: '700' }} color={selected ? colors.primary : colors.ink}>
-                {t === 'global' ? 'Global (USD)' : `Local (${b.currency})`}
-              </Txt>
-              <Txt variant="small" color={colors.muted} style={{ marginTop: 3 }}>
-                {money(value, t === 'global' ? '$' : b.symbol)}
-              </Txt>
-            </Pressable>
-          );
-        })}
-      </View>
+              return (
+                <Pressable
+                  key={t}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  onPress={() => setWalletType(t)}
+                  style={[styles.option, selected && { borderColor: colors.primary, backgroundColor: colors.primaryFaint }]}
+                >
+                  <Txt variant="small" style={{ fontWeight: '700' }} color={selected ? colors.primary : colors.ink}>
+                    {t === 'global' ? 'Global (USD)' : `Local (${b.currency})`}
+                  </Txt>
+                  <Txt variant="small" color={colors.muted} style={{ marginTop: 3 }}>
+                    {money(value, t === 'global' ? '$' : b.symbol)}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
 
       <Field
         label="Amount"

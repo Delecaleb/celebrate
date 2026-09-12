@@ -1,0 +1,66 @@
+name: CI
+
+# The suite covers the parts that quietly cost money when they break —
+# payment fulfilment, bank verification, wallet arithmetic — so it runs on
+# every push rather than on demand.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: PHP tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3, gd, bcmath, intl
+          coverage: none
+
+      - name: Cache composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Build front-end assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run the test suite
+        run: php artisan test
+
+  mobile:
+    name: Mobile typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: celebrateMobile/package-lock.json
+
+      - name: Install and typecheck
+        working-directory: celebrateMobile
+        run: |
+          npm ci
+          npx tsc --noEmit

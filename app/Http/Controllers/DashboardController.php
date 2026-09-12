@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Celebration;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\WalletService;
 use Illuminate\Http\Request;
 
@@ -60,6 +61,15 @@ class DashboardController extends Controller
         return $this->respond($request, 'wallet', 'Wallet');
     }
 
+    /**
+     * Profile lives in the same shell as everything else. It keeps the /profile
+     * URL, because the avatar menu and the Breeze password routes point there.
+     */
+    public function profile(Request $request)
+    {
+        return $this->respond($request, 'profile', 'Profile');
+    }
+
     public function bank(Request $request)
     {
         return $this->respond($request, 'bank', 'Bank Account');
@@ -95,6 +105,7 @@ class DashboardController extends Controller
     private function respond(Request $request, string $page, string $heading)
     {
         $data = $this->data() + [
+            'user'      => $request->user(),
             'page'      => $page,
             'nav'       => $page,
             'navGroups' => self::NAV,
@@ -147,7 +158,13 @@ class DashboardController extends Controller
 
         // Wallet ledger. Only the Wallet page uses it, behind a disclosure —
         // the page leads with balances and withdrawals, not a spending total.
-        $walletTransactions = $user->walletTransactions()->latest()->limit(50)->get();
+        // transactionable carries the giver's name; without eager loading this
+        // is one extra query per row.
+        $walletTransactions = $user->walletTransactions()
+            ->with('transactionable')
+            ->latest()
+            ->limit(50)
+            ->get();
 
         // Discover — public celebrations from other users
         $discover = Celebration::where('is_public', true)
@@ -157,18 +174,24 @@ class DashboardController extends Controller
             ->limit(12)
             ->get();
 
-        // Bank accounts & withdrawals
+        // Bank accounts & withdrawals. The bank list is what the add/edit
+        // payout form offers — cached for a day inside the service, so this is
+        // a cache read on all but the first page view of the day.
         $bankAccounts = $user->bankAccounts()->orderByDesc('is_default')->oldest()->get();
         $withdrawals  = $user->withdrawals()->with('bankAccount')->latest()->limit(30)->get();
+        $banks        = app(PaystackService::class)->banks();
 
         // Wallet display
         $currencySvc    = app(CurrencyService::class);
         $walletSvc      = app(WalletService::class);
         $userCurrency   = $currencySvc->forUser($user);
         $currencySymbol = config("currency.currencies.{$userCurrency}.symbol", $userCurrency);
-        $localDisplay   = $walletSvc->balance($user, 'local');
+        // USD countries check out in USD, so there is nothing for a local
+        // wallet to hold — they see the one balance, not two.
+        $hasLocalWallet = $walletSvc->hasLocalWallet($user);
         $globalDisplay  = $walletSvc->balance($user, 'global');
-        $walletDisplay  = $localDisplay; // legacy fallback
+        $localDisplay   = $hasLocalWallet ? $walletSvc->balance($user, 'local') : 0.0;
+        $walletDisplay  = $hasLocalWallet ? $localDisplay : $globalDisplay; // legacy fallback
 
         $hour     = now()->hour;
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
@@ -184,9 +207,9 @@ class DashboardController extends Controller
             'celebrations', 'upcoming', 'notifications', 'unreadCount',
             'walletTransactions',
             'discover', 'greeting', 'stats',
-            'bankAccounts', 'withdrawals',
+            'bankAccounts', 'withdrawals', 'banks',
             'userCurrency', 'currencySymbol', 'walletDisplay',
-            'localDisplay', 'globalDisplay'
+            'localDisplay', 'globalDisplay', 'hasLocalWallet'
         );
     }
 }

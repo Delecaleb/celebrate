@@ -32,9 +32,15 @@
                     <div class="stat-card">
                         <div class="stat-icon green"><i class="mdi mdi-wallet-outline"></i></div>
                         <p class="stat-label">Wallet balance</p>
-                        <p class="stat-value">{{ $currencySymbol }}{{ number_format($localDisplay, 2) }}</p>
+                        <p class="stat-value">
+                            @if ($hasLocalWallet)
+                                {{ $currencySymbol }}{{ number_format($localDisplay, 2) }}
+                            @else
+                                ${{ number_format($globalDisplay, 2) }}
+                            @endif
+                        </p>
                         <p class="stat-sub">
-                            @if ($userCurrency !== 'USD')
+                            @if ($hasLocalWallet)
                                 Global ${{ number_format($globalDisplay, 2) }}
                             @else
                                 available balance

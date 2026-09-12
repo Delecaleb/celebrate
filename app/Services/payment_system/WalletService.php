@@ -13,6 +13,54 @@ class WalletService
     public function __construct(private CurrencyService $currency) {}
 
     // -------------------------------------------------------------------------
+    // Which wallets a user actually has
+    // -------------------------------------------------------------------------
+
+    /**
+     * The local wallet only exists where USD checkout isn't available.
+     *
+     * Somebody in a USD country has one wallet — the global USD one. Giving
+     * them a second, also-USD "local" wallet splits their money across two
+     * balances that no rate separates, so every read and write below collapses
+     * to global for them.
+     */
+    public function hasLocalWallet(?User $user): bool
+    {
+        return $user !== null && strtoupper($this->currency->forUser($user)) !== 'USD';
+    }
+
+    /**
+     * Collapse a requested wallet type — 'local', 'global', or a currency code
+     * such as 'NGN'/'USD' — to the wallet this user really has.
+     *
+     * $currency is the currency the money is moving in: USD money always lands
+     * in the global wallet, whatever the caller asked for.
+     */
+    public function resolveWalletType(?User $user, ?string $requested = 'local', ?string $currency = null): string
+    {
+        if (! $this->hasLocalWallet($user)) {
+            return 'global';
+        }
+
+        $requested = strtolower(trim((string) $requested));
+
+        return ($requested === 'global' || $requested === 'usd' || strtoupper((string) $currency) === 'USD')
+            ? 'global'
+            : 'local';
+    }
+
+    /**
+     * The balance column backing a wallet type, for callers that increment the
+     * user row directly instead of going through debit()/credit().
+     */
+    public function balanceColumn(?User $user, ?string $walletType = 'local'): string
+    {
+        return $this->resolveWalletType($user, $walletType) === 'global'
+            ? 'global_wallet_balance'
+            : 'wallet_balance';
+    }
+
+    // -------------------------------------------------------------------------
     // Read
     // -------------------------------------------------------------------------
 
@@ -21,20 +69,14 @@ class WalletService
      */
     public function balance(User $user, string $walletType = 'local'): float
     {
-        $type = (strtoupper($walletType) === 'USD' || $walletType === 'global') ? 'global' : 'local';
-        if ($type === 'global') {
-            return (float) $user->global_wallet_balance;
-        }
-        return (float) $user->wallet_balance;
+        return $this->resolveWalletType($user, $walletType) === 'global'
+            ? (float) $user->global_wallet_balance
+            : (float) $user->wallet_balance;
     }
 
     public function hasSufficientBalance(User $user, float $amount, string $walletType = 'local'): bool
     {
-        $type = (strtoupper($walletType) === 'USD' || $walletType === 'global') ? 'global' : 'local';
-        if ($type === 'global') {
-            return (float) $user->global_wallet_balance >= $amount;
-        }
-        return (float) $user->wallet_balance >= $amount;
+        return $this->balance($user, $walletType) >= $amount;
     }
 
     // -------------------------------------------------------------------------
@@ -51,7 +93,7 @@ class WalletService
         ?string $originalCurrency = null,
         string  $walletType = 'local'
     ): WalletTransaction {
-        $type = (strtoupper($originalCurrency ?? '') === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        $type = $this->resolveWalletType($user, $walletType, $originalCurrency);
         $currency = $type === 'global' ? 'USD' : ($user->currency ?? 'NGN');
 
         return DB::transaction(function () use (
@@ -92,7 +134,7 @@ class WalletService
         ?string $originalCurrency = null,
         string  $walletType = 'local'
     ): WalletTransaction {
-        $type = (strtoupper($originalCurrency ?? '') === 'USD' || $walletType === 'global') ? 'global' : 'local';
+        $type = $this->resolveWalletType($user, $walletType, $originalCurrency);
         $currency = $type === 'global' ? 'USD' : ($user->currency ?? 'NGN');
 
         return DB::transaction(function () use (

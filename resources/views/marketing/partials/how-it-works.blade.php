@@ -4,7 +4,7 @@
     <div class="pattern pattern-dots pattern-fade"></div>
 
     <div class="wrap sec-inner">
-        <h1 class="h-display">Three steps.<br><span class="t-accent">Sixty seconds.</span></h1>
+        <h1 class="h-display">Three steps.<br><span class="t-accent">Thirty seconds.</span></h1>
         <p class="lead">
             You do the first step. Your guests do the second. We handle the money and the
             keepsake at the end.

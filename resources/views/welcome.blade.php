@@ -854,7 +854,7 @@
         <div class="wrap how-inner">
             <div class="section-head">
                 <span class="eyebrow">Ridiculously simple</span>
-                <h2>Three steps.<br>Sixty seconds.</h2>
+                <h2>Three steps.<br>Thirty seconds.</h2>
                 <p>No setup call, no credit card, no fiddling with settings for an hour.</p>
             </div>
 

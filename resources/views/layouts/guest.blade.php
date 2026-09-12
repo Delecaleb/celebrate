@@ -1,3 +1,12 @@
+@props([
+    'title'       => null,
+    'description' => null,
+    'ogImage'     => null,
+    'ogImageAlt'  => null,
+    'ogType'      => 'website',
+    'noindex'     => false,
+    'structured'  => [],
+])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -5,7 +14,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ $title ?? config('app.name', 'Laravel') }}</title>
+        {{-- A celebration page passes its own description, cover photo and
+             visibility; anything else falls back to the site defaults. --}}
+        <x-seo
+            :title="$title ?: config('seo.name')"
+            :description="$description"
+            :image="$ogImage"
+            :imageAlt="$ogImageAlt"
+            :type="$ogType"
+            :noindex="$noindex"
+            :structured="$structured"
+        />
 
         <!-- Fonts. Outfit and Plus Jakarta Sans are what theme.css actually
              asks for — without them every .ds page falls back to system-ui. -->
@@ -23,6 +42,8 @@
         <style>[x-cloak] { display: none !important; }</style>
     </head>
     <body class="font-sans text-gray-900 antialiased">
+        <x-impersonation-banner />
+
         <div class="min-h-screen bg-white">
            {{ $slot }}
         </div>

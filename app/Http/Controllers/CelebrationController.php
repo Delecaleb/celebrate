@@ -180,31 +180,38 @@ class CelebrationController extends Controller
             : 0.0;
 
         // Platform gifts with visitor-currency price pre-computed
-        $platformGifts = PlatformAvailableGift::where('is_active', true)
+        // priceIn() prefers a price an admin set for this currency by hand and
+        // only converts the default where there is none.
+        $platformGifts = PlatformAvailableGift::active()
+            ->with('prices')
+            ->ordered()
             ->get()
-            ->map(function ($gift) use ($currencyService, $visitorCurrency) {
-                $gift->displayPrice = round($currencyService->convert((float) $gift->gift_price, 'USD', $visitorCurrency), 2);
+            ->map(function ($gift) use ($visitorCurrency) {
+                $gift->displayPrice = $gift->priceIn($visitorCurrency);
                 return $gift;
             });
 
         // Sidebar items with display totals
         $sidebarItems = $celebration
-            ->sidebarGifts($platformGifts)
+            ->sidebarGifts()
             ->map(function ($item) use ($currencyService, $visitorCurrency) {
                 $item->displayTotal = $currencyService->convert($item->totalUsd, 'USD', $visitorCurrency);
                 $item->received     = $item->totalUsd > 0;
                 return $item;
             });
 
-        // Wishes with visitor-currency amounts pre-computed (no @php in the view)
-        $wishes = $celebration->wishes->map(function ($wish) use ($visitorCurrency) {
+        // Wishes with visitor-currency amounts pre-computed (no @php in the view).
+        // Grouped up front so raisedIn() never goes back to the database.
+        $paidByWish = $paidContributions->groupBy('wish_id');
+
+        $wishes = $celebration->wishes->map(function ($wish) use ($visitorCurrency, $currencyService, $paidByWish) {
             $wish->displayTarget  = $wish->displayAmount($visitorCurrency);
-            $rate = (float) ($wish->conversion_rate ?? 1);
-            $wish->displayCurrent = match (true) {
-                $visitorCurrency === $wish->base_currency                              => (float) $wish->current_amount,
-                $visitorCurrency === $wish->converted_currency && $rate > 0            => round((float) $wish->current_amount * $rate, 2),
-                default                                                                => (float) $wish->current_amount,
-            };
+            $wish->displayCurrent = $wish->raisedIn(
+                $visitorCurrency,
+                $currencyService,
+                $paidByWish->get($wish->id, collect())
+            );
+
             return $wish;
         });
 
@@ -383,15 +390,6 @@ class CelebrationController extends Controller
 
 public function storeComment(Request $request)
 {
-    $guestNames = [
-        'Anonymous Admirer',
-        'Secret Well-Wisher',
-        'Birthday Fan',
-        'Celebration Friend',
-        'Mystery Guest',
-        'Joy Bringer',
-        'Secret Supporter',
-    ];
     try {
 
         $request->validate([
@@ -452,7 +450,10 @@ public function storeComment(Request $request)
 
             'user_id' =>  Auth::id() ?? null,
 
-            'guest_name' => $fullname ?? $guestNames[array_rand($guestNames)],
+            // A wish from someone not signed in is posted as Anonymous. The
+            // playful stand-in names this used to pick read as real people,
+            // which made an empty page look busier than it was.
+            'guest_name' => $fullname ?? 'Anonymous',
 
             'guest_email' => $guest_email,
 

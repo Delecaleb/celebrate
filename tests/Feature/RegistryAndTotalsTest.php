@@ -16,6 +16,32 @@ class RegistryAndTotalsTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Every figure in this file is in USD. A test request has no traceable
+        // address, so without this the visitor would be placed in the
+        // configured market and each total converted into its currency —
+        // correct behaviour, but not what these tests are measuring.
+        config(['currency.fallback_country' => 'US']);
+    }
+
+    /**
+     * An owner who works in the base currency.
+     *
+     * Every figure below is denominated in USD, so the owner has to be too —
+     * a new account now takes its currency from where the signup came from,
+     * which for an undetectable test request is the configured market.
+     */
+    private function usdOwner(): User
+    {
+        $user = User::factory()->create();
+        $user->forceFill(['currency' => 'USD', 'country' => 'US'])->save();
+
+        return $user->fresh();
+    }
+
     private function celebration(User $owner): Celebration
     {
         return Celebration::create([
@@ -90,7 +116,7 @@ class RegistryAndTotalsTest extends TestCase
      */
     public function test_the_raised_total_counts_paid_gifts_and_paid_contributions(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -106,7 +132,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_pending_and_failed_money_is_not_counted_as_raised(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -124,7 +150,7 @@ class RegistryAndTotalsTest extends TestCase
     /** Amounts taken in different currencies must be converted, not added raw. */
     public function test_mixed_currency_gifts_are_converted_before_summing(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
 
         $this->gift($celebration, 10, 'USD', 'paid');
@@ -144,7 +170,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_registry_contributors_appear_as_supporters(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -164,7 +190,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_an_owner_can_remove_a_registry_item(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         // deliberately not "Nike Air Max" — that is the add-item placeholder,
         // which the owner's own view renders and would defeat assertDontSee
@@ -188,7 +214,7 @@ class RegistryAndTotalsTest extends TestCase
     /** Removing an item must never destroy money already given towards it. */
     public function test_removing_an_item_keeps_its_contributions(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -208,7 +234,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_someone_else_cannot_remove_your_registry_item(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -221,7 +247,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_a_guest_cannot_remove_a_registry_item(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
         $wish        = $this->wish($celebration);
 
@@ -235,7 +261,7 @@ class RegistryAndTotalsTest extends TestCase
     /** An item with no cost is valid — it used to 500 on the missing keys. */
     public function test_an_owner_can_add_an_item_without_a_cost(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
 
         $this->actingAs($owner)
@@ -253,7 +279,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_an_owner_can_add_an_item_with_a_cost(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
 
         $this->actingAs($owner)
@@ -270,7 +296,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_you_cannot_add_items_to_someone_elses_registry(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
 
         $this->actingAs(User::factory()->create())
@@ -285,7 +311,7 @@ class RegistryAndTotalsTest extends TestCase
 
     public function test_a_guest_cannot_add_items_to_a_registry(): void
     {
-        $owner       = User::factory()->create();
+        $owner       = $this->usdOwner();
         $celebration = $this->celebration($owner);
 
         $this->postJson(route('celebrant.create-wishes'), [

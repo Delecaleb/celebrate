@@ -16,6 +16,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Country assumed when we cannot detect one
+    |--------------------------------------------------------------------------
+    | A private IP in development, an unreachable lookup, a request with no
+    | usable address — detection returns nothing, and something still has to be
+    | decided. Falling straight to the base currency made every such signup a
+    | USD account, which is wrong for a platform whose customers are mostly in
+    | one country.
+    |
+    | This is that country. It goes through country_map like any other, so
+    | changing it — or clearing it to fall through to the base currency — is a
+    | one-line edit and no code changes.
+    */
+    'fallback_country' => env('CURRENCY_FALLBACK_COUNTRY', 'NG'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Currency Meta
     |--------------------------------------------------------------------------
     */

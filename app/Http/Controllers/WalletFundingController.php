@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\WalletTransaction;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
@@ -21,6 +22,7 @@ class WalletFundingController extends Controller
         private WalletService   $wallet,
         private PaystackService $paystack,
         private StripeService   $stripe,
+        private PaymentFulfilmentService $fulfilment,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -36,7 +38,8 @@ class WalletFundingController extends Controller
 
         $user         = Auth::user();
         $userCurrency = $this->currency->forUser($user);
-        $walletType   = $request->input('wallet_type', 'local');
+        // A USD user has no local wallet to fund, whatever the form posted.
+        $walletType   = $this->wallet->resolveWalletType($user, $request->input('wallet_type', 'local'));
         $amount       = (float) $request->amount;
         $reference    = 'wf-' . Str::uuid();
 
@@ -135,19 +138,13 @@ class WalletFundingController extends Controller
                 ->with('error', 'Transaction record not found.');
         }
 
-        if ($tx->status === 'completed') {
+        // Idempotent: the webhook may have credited this already.
+        $status = $this->fulfilment->fulfilWalletFunding($reference);
+
+        if ($status === PaymentFulfilmentService::ALREADY) {
             return redirect()->route('dashboard.wallet')
                 ->with('success', 'Your wallet was already funded.');
         }
-
-        DB::transaction(function () use ($tx) {
-            $tx->update(['status' => 'completed']);
-            if ($tx->wallet_type === 'global') {
-                $tx->user->increment('global_wallet_balance', (float) $tx->amount);
-            } else {
-                $tx->user->increment('wallet_balance', (float) $tx->amount);
-            }
-        });
 
         $symbol  = config("currency.currencies.{$tx->original_currency}.symbol", $tx->original_currency);
         $display = $symbol . number_format((float) $tx->original_amount, 2);
@@ -193,14 +190,12 @@ class WalletFundingController extends Controller
                 ->with('error', 'We could not confirm that payment. If you were charged, contact support and quote ' . $reference . '.');
         }
 
-        DB::transaction(function () use ($tx) {
-            $tx->update(['status' => 'completed']);
-            if ($tx->wallet_type === 'global') {
-                $tx->user->increment('global_wallet_balance', (float) $tx->amount);
-            } else {
-                $tx->user->increment('wallet_balance', (float) $tx->amount);
-            }
-        });
+        $status = $this->fulfilment->fulfilWalletFunding($reference);
+
+        if ($status === PaymentFulfilmentService::ALREADY) {
+            return redirect()->route('dashboard.wallet')
+                ->with('success', 'Your wallet was already funded.');
+        }
 
         $display = '$' . number_format((float) $tx->original_amount, 2);
 

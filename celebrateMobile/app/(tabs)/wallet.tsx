@@ -58,14 +58,23 @@ export default function WalletScreen() {
         action={<Button title="Fund" icon="plus" size="sm" onPress={() => router.push('/modal/fund-wallet')} />}
       />
 
+      {/* The local wallet only exists where USD checkout doesn't. Where USD
+          works there is one wallet, not a second pile of the same money. */}
       <View style={{ gap: spacing.md, marginBottom: spacing.xl }}>
+        {b.has_local_wallet ? (
+          <BalanceCard
+            chip={`Local wallet (${b.currency})`}
+            icon="wallet"
+            amount={money(b.local, b.symbol)}
+            tone="primary"
+          />
+        ) : null}
         <BalanceCard
-          chip={`Local wallet (${b.currency})`}
-          icon="wallet"
-          amount={money(b.local, b.symbol)}
-          tone="primary"
+          chip={b.has_local_wallet ? 'Global wallet (USD)' : 'Wallet (USD)'}
+          icon={b.has_local_wallet ? 'earth' : 'wallet'}
+          amount={money(b.global, '$')}
+          tone={b.has_local_wallet ? 'ink' : 'primary'}
         />
-        <BalanceCard chip="Global wallet (USD)" icon="earth" amount={money(b.global, '$')} tone="ink" />
       </View>
 
       {/* Bank account is a setting rather than a destination, so it lives here

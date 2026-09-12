@@ -2,27 +2,51 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ResolvesBankAccounts;
 use App\Models\BankAccount;
+use App\Services\PaymentSystem\PaystackService;
 use Illuminate\Http\Request;
 
 class BankAccountController extends Controller
 {
+    use ResolvesBankAccounts;
+
+    /**
+     * Name lookup for the add/edit forms.
+     *
+     * The form calls this as soon as a bank is picked and ten digits are typed,
+     * and only enables its submit button once it answers. store() runs the same
+     * check again — this endpoint is a convenience, not the gate.
+     */
+    public function resolve(Request $request)
+    {
+        $data     = $request->validate($this->bankAccountRules());
+        $verified = $this->verifiedBankPayload($data);
+
+        return response()->json([
+            'bank_name'    => $verified['bank_name'],
+            'account_name' => $verified['account_name'],
+            'verified'     => $verified['is_verified'],
+        ]);
+    }
+
+    /**
+     * The banks we can pay into, for the form's dropdown.
+     */
+    public function banks(PaystackService $paystack)
+    {
+        return response()->json(['data' => $paystack->banks()]);
+    }
+
     public function store(Request $request)
     {
-        $request->validate([
-            'bank_name'      => ['required', 'string', 'max:100'],
-            'account_number' => ['required', 'string', 'size:10', 'regex:/^[0-9]{10}$/'],
-            'account_name'   => ['required', 'string', 'max:150'],
-        ]);
+        $data = $request->validate($this->bankAccountRules());
 
         $user    = auth()->user();
         $isFirst = $user->bankAccounts()->count() === 0;
 
-        $user->bankAccounts()->create([
-            'bank_name'      => $request->bank_name,
-            'account_number' => $request->account_number,
-            'account_name'   => $request->account_name,
-            'is_default'     => $isFirst,
+        $user->bankAccounts()->create($this->verifiedBankPayload($data) + [
+            'is_default' => $isFirst,
         ]);
 
         return back()
@@ -33,17 +57,9 @@ class BankAccountController extends Controller
     {
         abort_if($bankAccount->user_id !== auth()->id(), 403);
 
-        $request->validate([
-            'bank_name'      => ['required', 'string', 'max:100'],
-            'account_number' => ['required', 'string', 'size:10', 'regex:/^[0-9]{10}$/'],
-            'account_name'   => ['required', 'string', 'max:150'],
-        ]);
+        $data = $request->validate($this->bankAccountRules());
 
-        $bankAccount->update([
-            'bank_name'      => $request->bank_name,
-            'account_number' => $request->account_number,
-            'account_name'   => $request->account_name,
-        ]);
+        $bankAccount->update($this->verifiedBankPayload($data));
 
         return back()
             ->with('success', 'Bank account updated.');

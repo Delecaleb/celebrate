@@ -164,9 +164,22 @@ export type Frame = {
   preview_image: string | null;
 };
 
+export type Bank = {
+  name: string;
+  code: string;
+};
+
+/** What the bank says about a bank code + account number pair. */
+export type ResolvedAccount = {
+  bank_name: string;
+  account_name: string;
+  verified: boolean;
+};
+
 export type BankAccount = {
   id: number;
   bank_name: string;
+  bank_code: string | null;
   account_number: string;
   masked_number: string;
   account_name: string;
@@ -216,6 +229,11 @@ export type Notification = {
 export type WalletBalances = {
   currency: string;
   symbol: string;
+  /**
+   * False where the country checks out in USD — those users have the one
+   * global wallet, and `local` is always 0.
+   */
+  has_local_wallet: boolean;
   local: number;
   global: number;
 };

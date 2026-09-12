@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Withdrawal;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,19 @@ class WithdrawalController extends Controller
 
         $user        = auth()->user();
         $bankAccount = $user->bankAccounts()->findOrFail($request->bank_account_id);
-        $walletType  = $request->wallet_type;
+
+        // A payout goes to a name the bank itself confirmed. Accounts saved
+        // before verification existed — or while the gateway was unreachable —
+        // carry is_verified = false, and have to be re-saved before we will
+        // send money to them.
+        if (app(PaystackService::class)->isConfigured() && ! $bankAccount->is_verified) {
+            return back()
+                ->withInput()
+                ->with('error', 'That bank account has not been confirmed with your bank yet. Open it, re-enter the account number, and save it again.');
+        }
+        // A USD user only has the global wallet — taking 'local' at face value
+        // here checked one balance and debited the other.
+        $walletType  = $this->wallet->resolveWalletType($user, $request->wallet_type);
         $amount      = (float) $request->amount;
 
         $userCurrency = $this->currency->forUser($user);

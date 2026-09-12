@@ -18,9 +18,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ $title }}</title>
-    <meta name="description" content="{{ $description ?? 'Create a celebration page in 60 seconds. Collect wishes, gifts and money from everyone who loves you.' }}">
-    <meta name="theme-color" content="{{ config('brand.primary.500') }}">
+    {{-- Titles, canonical, Open Graph, Twitter cards, icons and JSON-LD all
+         come from one component — see resources/views/components/seo.blade.php.
+         A page only supplies what is different about it. --}}
+    <x-seo
+        :title="$title"
+        :description="$description ?? null"
+        :image="$ogImage ?? null"
+        :imageAlt="$ogImageAlt ?? null"
+        :type="$ogType ?? 'website'"
+        :canonical="$canonical ?? null"
+        :structured="$structured ?? []"
+    />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +47,7 @@
     <x-brand-tokens />
     @include('marketing.styles.core')
     @include('marketing.styles.home')
+    @include('marketing.styles.story')
 </head>
 <body>
 
@@ -131,6 +141,14 @@
                     and keep the memories long after the day is over.
                 </p>
 
+                {{-- Plenty of people search for "CelebrateMe". Saying so once,
+                     plainly, helps them and tells search engines the spellings
+                     belong to the same site. --}}
+                <p class="foot-alias">
+                    CelebrateMi — also searched for as CelebrateMe or Celebrate Me.
+                    You're in the right place.
+                </p>
+
                 <div class="foot-social">
                     <a href="https://instagram.com" aria-label="Instagram" rel="noopener" target="_blank"><i class="mdi mdi-instagram"></i></a>
                     <a href="https://x.com" aria-label="X" rel="noopener" target="_blank"><i class="mdi mdi-twitter"></i></a>
@@ -170,7 +188,9 @@
                     @else
                         <li><a href="{{ url('/dashboard') }}">Dashboard</a></li>
                     @endguest
-                    <li><a href="mailto:hello@celebratemi.com">Contact us</a></li>
+                    <li><a href="mailto:{{ config('seo.legal.email') }}">Contact us</a></li>
+                    <li><a href="{{ route('terms') }}" data-nav>Terms of service</a></li>
+                    <li><a href="{{ route('privacy') }}" data-nav>Privacy policy</a></li>
                 </ul>
             </div>
         </div>
@@ -180,6 +200,7 @@
             <div class="foot-meta">
                 <span><i class="mdi mdi-shield-check-outline"></i> Secure payments</span>
                 <span><i class="mdi mdi-credit-card-outline"></i> Paystack &amp; Stripe</span>
+                <a href="{{ route('sitemap') }}">Sitemap</a>
             </div>
         </div>
     </div>
@@ -220,16 +241,20 @@
                     </div>
 
                     <div class="field">
-                        <label class="field-label" for="ce-type">What's the occasion?</label>
-                        <select id="ce-type" class="input" x-model="form.eventType">
-                            <option value="">Select an occasion</option>
-                            <option value="birthday">Birthday</option>
-                            <option value="wedding">Wedding</option>
-                            <option value="graduation">Graduation</option>
-                            <option value="anniversary">Anniversary</option>
-                            <option value="baby_shower">Baby shower</option>
-                            <option value="other">Other</option>
-                        </select>
+                        <span class="field-label" id="ce-type-label">What's the occasion?</span>
+                        <div class="occasion-grid" role="radiogroup" aria-labelledby="ce-type-label">
+                            <template x-for="opt in eventTypes" :key="opt.value">
+                                <button type="button"
+                                        class="occasion-tile"
+                                        :class="form.eventType === opt.value && 'is-on'"
+                                        role="radio"
+                                        :aria-checked="form.eventType === opt.value ? 'true' : 'false'"
+                                        @click="form.eventType = opt.value">
+                                    <i class="mdi" :class="opt.icon" aria-hidden="true"></i>
+                                    <span x-text="opt.label"></span>
+                                </button>
+                            </template>
+                        </div>
                     </div>
 
                     <div class="field">
@@ -290,6 +315,16 @@
         return {
             step: 1,
             loggedIn: false,
+
+            /* Occasion picker — rendered as icon tiles, not a dropdown. */
+            eventTypes: [
+                { value: 'birthday',    label: 'Birthday',    icon: 'mdi-cake-variant'   },
+                { value: 'wedding',     label: 'Wedding',     icon: 'mdi-ring'           },
+                { value: 'graduation',  label: 'Graduation',  icon: 'mdi-school'         },
+                { value: 'anniversary', label: 'Anniversary', icon: 'mdi-heart'          },
+                { value: 'baby_shower', label: 'Baby shower', icon: 'mdi-baby-carriage'  },
+                { value: 'other',       label: 'Other',       icon: 'mdi-party-popper'   },
+            ],
 
             form: { celebrantName: '', eventType: '', startDate: '', endDate: '', eventTitle: '' },
             auth: { email: '', password: '' },

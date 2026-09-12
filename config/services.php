@@ -43,9 +43,21 @@ return [
     'stripe' => [
         'secret' => env("STRIPE_SECRET_KEY"),
         'publishable_key' => env("STRIPE_PUBLISHABLE_KEY"),
+        // Signing secret for the endpoint, from the Stripe dashboard. This is
+        // not the API key — a webhook signed with the wrong one is rejected.
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
     'ipinfo' => [
         'token' => env('IPINFO_TOKEN'),
+
+        /*
+        | Development only. A request from 127.0.0.1 cannot be geolocated, so
+        | local signups never exercise the real lookup. Set this to any public
+        | address and detection runs against that instead — the fastest way to
+        | prove the Nigeria path works before deploying. Leave empty in
+        | production, where it is ignored anyway.
+        */
+        'dev_ip' => env('LOCATION_DEV_IP', ''),
     ],
 ];

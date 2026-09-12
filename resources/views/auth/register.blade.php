@@ -4,11 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Create account — CelebrateMi</title>
+    {{-- Auth screens stay out of the index; the meta component still gives
+         them icons, theme colour and a card if the link is ever shared. --}}
+    <x-seo title="Create account — CelebrateMi" noindex />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    {{-- The landing page's type system, so signing in doesn't feel like a
+         different product: Outfit for display, Plus Jakarta Sans for text. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -32,7 +36,7 @@
         html, body { height: 100%; }
 
         body {
-            font-family: 'Inter', system-ui, sans-serif;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             background: var(--off);
             color: var(--dark);
             display: flex;
@@ -52,11 +56,13 @@
         }
 
         .brand {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 700;
             font-size: 1.4rem;
             color: var(--dark);
             text-decoration: none;
-            letter-spacing: -0.01em;
+            /* the wordmark's tracking on the marketing nav */
+            letter-spacing: -0.045em;
             flex-shrink: 0;
         }
 
@@ -68,20 +74,15 @@
             padding: 2.5rem 0 2rem;
         }
 
-        .form-eyebrow {
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-        }
-
         h1 {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 700;
             font-size: 2.6rem;
-            line-height: 1.08;
-            letter-spacing: -0.025em;
+            /* Outfit sets tighter and rides higher than a serif at the same
+               size, so these match the marketing headings rather than the
+               values the old serif needed. */
+            line-height: 1.04;
+            letter-spacing: -0.035em;
             margin-bottom: 0.6rem;
         }
 
@@ -184,6 +185,8 @@
             opacity: 0.7;
             line-height: 1.5;
         }
+        .terms-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
+        .terms-note a:hover { text-decoration: underline; }
 
         .form-switch {
             margin-top: 1.5rem;
@@ -245,15 +248,24 @@
         }
 
         .photo-quote blockquote {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 500;
             font-size: 1.55rem;
             line-height: 1.4;
+            letter-spacing: -0.025em;
             margin-bottom: 1rem;
             max-width: 440px;
         }
 
         .photo-quote blockquote::before { content: '\201C'; }
         .photo-quote blockquote::after  { content: '\201D'; }
+
+        .photo-quote-by {
+            margin-bottom: 1.1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            opacity: 0.78;
+        }
 
         .photo-quote-meta {
             display: flex;
@@ -296,7 +308,6 @@
 
         <div class="form-area">
 
-            <p class="form-eyebrow">Get started — it's free</p>
             <h1>Create your<br>account</h1>
             
             <div class="perks">
@@ -374,7 +385,9 @@
                 <button type="submit" class="btn-submit">Create my account →</button>
 
                 <p class="terms-note">
-                    By creating an account you agree to our terms of service.<br>
+                    By creating an account you agree to our
+                    <a href="{{ route('terms') }}">terms of service</a> and
+                    <a href="{{ route('privacy') }}">privacy policy</a>.<br>
                     No spam, no hidden fees.
                 </p>
             </form>
@@ -391,19 +404,29 @@
     </div>
 
     <!-- Right: photo -->
+    {{-- One of the real pages on /stories, so the same words appear in both
+         places. Trimmed to fit the panel; the full quote is on the story. The
+         photo is that story's own cover, so the two can never drift apart. --}}
+    @php $voice = app(\App\Support\StoryLibrary::class)->find('chidi-and-amaka'); @endphp
+
     <div class="panel-right">
         <img
-            src="https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=1000&h=1400&fit=crop&q=80"
-            alt="Friends celebrating together"
-            loading="eager"
+            src="{{ \App\Support\StoryLibrary::photo($voice['cover'] ?? 'wedding', 1000, 1400) }}"
+            alt="A bride and groom walking back down the aisle through falling petals"
+            loading="eager" decoding="async"
         >
+
         <div class="photo-quote">
             <blockquote>
-                We used it for my mum's 60th. Everyone knew the plan, the photos were incredible.
+                Half our guests were abroad and couldn't make the wedding. The page meant
+                they were still part of it.
             </blockquote>
+            <p class="photo-quote-by">
+                {{ $voice['quote_by'] ?? 'Chidi &amp; Amaka' }} — {{ $voice['quote_meta'] ?? 'Wedding · Enugu' }}
+            </p>
             <div class="photo-quote-meta">
-                <span class="stat-bubble">🎉 18,000+ events created</span>
-                <span class="stat-bubble">⭐ 4.9 rating</span>
+                <span class="stat-bubble">🎉 Free to create</span>
+                <span class="stat-bubble">🔒 Yours to keep, for good</span>
             </div>
         </div>
     </div>

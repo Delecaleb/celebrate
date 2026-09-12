@@ -548,30 +548,92 @@
                 <div class="sidebar-brand-text">Admin</div>
             </div>
 
+            {{-- Only what this admin can actually open. A link to a 403 is
+                 worse than no link. --}}
+            @php $me = auth('admin')->user(); @endphp
+
             <nav class="sidebar-nav">
                 <a href="{{ route('admin.dashboard') }}" class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
                     <div class="nav-icon"><i class="mdi mdi-view-dashboard"></i></div>
                     <span>Dashboard</span>
                 </a>
-                <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
-                    <div class="nav-icon"><i class="mdi mdi-account-group"></i></div>
-                    <span>Users</span>
-                </a>
-                <a href="{{ route('admin.events') }}" class="nav-item {{ request()->routeIs('admin.events') ? 'active' : '' }}">
-                    <div class="nav-icon"><i class="mdi mdi-calendar-star"></i></div>
-                    <span>Events</span>
-                </a>
-                <a href="{{ route('admin.withdrawals') }}" class="nav-item {{ request()->routeIs('admin.withdrawals') ? 'active' : '' }}">
-                    <div class="nav-icon"><i class="mdi mdi-bank-transfer-out"></i></div>
-                    <span>Withdrawals</span>
-                </a>
-                <a href="{{ route('admin.frames') }}" class="nav-item {{ request()->routeIs('admin.frames') ? 'active' : '' }}">
-                    <div class="nav-icon"><i class="mdi mdi-image-frame"></i></div>
-                    <span>Frames</span>
-                </a>
+
+                @if ($me?->hasPermission('users.view'))
+                    <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-account-group"></i></div>
+                        <span>Users</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('events.view'))
+                    <a href="{{ route('admin.events') }}" class="nav-item {{ request()->routeIs('admin.events*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-calendar-star"></i></div>
+                        <span>Celebrations</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('payments.view'))
+                    <a href="{{ route('admin.payments') }}" class="nav-item {{ request()->routeIs('admin.payments*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-cash-multiple"></i></div>
+                        <span>Payments</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('withdrawals.view'))
+                    <a href="{{ route('admin.withdrawals') }}" class="nav-item {{ request()->routeIs('admin.withdrawals') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-bank-transfer-out"></i></div>
+                        <span>Withdrawals</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('gifts.manage'))
+                    <a href="{{ route('admin.gifts') }}" class="nav-item {{ request()->routeIs('admin.gifts*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-gift-outline"></i></div>
+                        <span>Gifts</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('frames.manage'))
+                    <a href="{{ route('admin.frames') }}" class="nav-item {{ request()->routeIs('admin.frames') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-image-frame"></i></div>
+                        <span>Frames</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('admins.manage'))
+                    <a href="{{ route('admin.staff') }}" class="nav-item {{ request()->routeIs('admin.staff*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-shield-account"></i></div>
+                        <span>Staff</span>
+                    </a>
+                @endif
+
+                @if ($me?->hasPermission('settings.manage'))
+                    <a href="{{ route('admin.settings', 'payments') }}" class="nav-item {{ request()->routeIs('admin.settings*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-key-variant"></i></div>
+                        <span>Settings</span>
+                    </a>
+                    <a href="{{ route('admin.currencies') }}" class="nav-item {{ request()->routeIs('admin.currencies*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-cash-multiple"></i></div>
+                        <span>Currencies</span>
+                    </a>
+                @endif
+
+                @if ($me?->is_super)
+                    <a href="{{ route('admin.audit') }}" class="nav-item {{ request()->routeIs('admin.audit') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-history"></i></div>
+                        <span>Audit log</span>
+                    </a>
+                @endif
             </nav>
 
             <div class="sidebar-footer">
+                @if ($me)
+                    <div style="padding:0 0 0.75rem;font-size:0.78rem;color:rgba(255,255,255,0.6);line-height:1.5">
+                        <div style="font-weight:600;color:#fff">{{ $me->name }}</div>
+                        {{ $me->is_super ? 'Super admin' : 'Admin' }}
+                    </div>
+                @endif
+
                 <form action="{{ route('admin.logout') }}" method="POST" style="width: 100%;">
                     @csrf
                     <button type="submit" class="logout-btn">

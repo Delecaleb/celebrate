@@ -11,6 +11,8 @@ class BankAccountResource extends JsonResource
         return [
             'id'             => $this->id,
             'bank_name'      => $this->bank_name,
+            // The app needs the code to re-open this account in its bank picker.
+            'bank_code'      => $this->bank_code,
             'account_number' => $this->account_number,
             // What the list rows and the "Paid into" tile show.
             'masked_number'  => '••'.substr((string) $this->account_number, -4),

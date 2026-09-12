@@ -11,20 +11,16 @@
 <section class="hero">
     <div class="wrap hero-grid">
         <div class="hero-copy">
-            <p class="eyebrow">
-                <span class="dot" aria-hidden="true"></span>
-                Free to create · no card needed
-            </p>
 
             <h1 class="h-display">
-                Somebody you love
-                <span class="t-serif">deserves a fuss.</span>
+                Your day is coming.
+                <span class="t-serif">Let them make a fuss.</span>
             </h1>
 
             <p class="lead">
-                Build them a page in a minute. Everyone sends
-                <strong>wishes, photos and real money</strong> to one link — and you keep
-                a photobook of the whole thing afterwards.
+                Put up your page in half a minute. Everyone who loves you sends
+                <strong>wishes, photos and real money</strong> to one link — and it all
+                stays yours, long after the day is over.
             </p>
 
             <div class="hero-ctas">
@@ -34,7 +30,7 @@
                     x-on:click="$dispatch('open-modal', 'create-event')"
                     class="btn btn-primary btn-lg"
                 >
-                    <i class="mdi mdi-party-popper"></i> Create their page
+                    <i class="mdi mdi-party-popper"></i> Create my page
                 </button>
 
                 <a href="{{ route('how-it-works') }}" data-nav class="btn btn-secondary btn-lg">
@@ -43,9 +39,9 @@
             </div>
 
             <div class="hero-fineprint">
-                <span><i class="mdi mdi-check-circle"></i> Live in 60 seconds</span>
+                <span><i class="mdi mdi-check-circle"></i> Live in 30 seconds</span>
                 <span><i class="mdi mdi-check-circle"></i> Guests need no account</span>
-                <span><i class="mdi mdi-check-circle"></i> Withdraw any time</span>
+                <span><i class="mdi mdi-check-circle"></i> Yours to keep afterwards</span>
             </div>
         </div>
 
@@ -70,11 +66,15 @@
                 <i class="mdi mdi-cake-variant"></i> Happy birthday!
             </div>
 
+            {{-- Self-hosted, so the fold does not depend on a third party being
+                 up. fetchpriority on the tall one: it is the largest thing
+                 above the fold and therefore the LCP element. --}}
             <figure class="ph ph-tall">
                 <img
-                    src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=760&h=1140&fit=crop&q=80"
-                    alt="A woman smiling to camera on her celebration day"
-                    loading="eager"
+                    src="{{ asset('images/hero/hero-tall.webp') }}"
+                    alt="A woman laughing on her birthday, friends behind her in a decorated room"
+                    width="1536" height="2752"
+                    loading="eager" fetchpriority="high" decoding="async"
                 >
                 <figcaption class="ph-tag">
                     <i class="mdi mdi-account-heart-outline"></i> 63 people joined in
@@ -83,17 +83,19 @@
 
             <figure class="ph ph-wide">
                 <img
-                    src="https://images.unsplash.com/photo-1541532713592-79a0317b6b77?w=680&h=530&fit=crop&q=80"
-                    alt="Friends raising their glasses in a toast at a party"
-                    loading="eager"
+                    src="{{ asset('images/hero/hero-wide.webp') }}"
+                    alt="Six friends raising their glasses in a toast around a table"
+                    width="2752" height="1536"
+                    loading="eager" decoding="async"
                 >
             </figure>
 
             <figure class="ph ph-short">
                 <img
-                    src="https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?w=680&h=580&fit=crop&q=80"
-                    alt="A man throwing his fists up, laughing, mid-celebration"
-                    loading="lazy"
+                    src="{{ asset('images/hero/hero-short.webp') }}"
+                    alt="A man throwing both fists up, laughing, confetti falling around him"
+                    width="2752" height="1536"
+                    loading="lazy" decoding="async"
                 >
             </figure>
         </div>
@@ -104,19 +106,28 @@
 <div class="wrap">
     <div class="trust">
         <div class="trust-people">
+            @php $trust = app(\App\Support\SiteStats::class); @endphp
+
             <div class="avatars" aria-hidden="true">
                 <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=90&h=90&fit=crop&q=80" alt="" loading="lazy">
                 <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=90&h=90&fit=crop&q=80" alt="" loading="lazy">
                 <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=90&h=90&fit=crop&q=80" alt="" loading="lazy">
                 <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=90&h=90&fit=crop&q=80" alt="" loading="lazy">
-                <span class="more">2.4k</span>
+                @if ($trust->isMeaningful())
+                    <span class="more">{{ \App\Support\SiteStats::short($trust->figures()['celebrations']) }}</span>
+                @endif
             </div>
 
             <p class="trust-text">
-                <span class="trust-stars" aria-hidden="true">
-                    <i class="mdi mdi-star"></i><i class="mdi mdi-star"></i><i class="mdi mdi-star"></i><i class="mdi mdi-star"></i><i class="mdi mdi-star"></i>
-                </span><br>
-                <strong>2,400+ celebrations</strong> created this month
+                @if ($trust->isMeaningful())
+                    <strong>{{ number_format($trust->figures()['celebrations']) }} celebrations</strong>
+                    made on CelebrateMi — every one still online
+                @else
+                    {{-- Nothing to count yet, so the claim is about the product
+                         rather than the traction. --}}
+                    <strong>Free to create</strong>, live in 30 seconds, and it
+                    never comes down
+                @endif
             </p>
         </div>
 
@@ -138,17 +149,16 @@
 <section class="sec">
     <div class="wrap">
         <div class="section-head is-centred">
-            <p class="eyebrow"><i class="mdi mdi-gesture-tap"></i> How it goes</p>
             <h2 class="h-section">Four small steps.<br>One <span class="t-serif t-accent">very good</span> day.</h2>
         </div>
 
         <div class="flow-grid">
             <article class="flow-card flow-1">
                 <span class="n">1</span>
-                <h3>Make the page</h3>
+                <h3>Make your page</h3>
                 <p>
-                    Name the celebrant, pick the occasion, done. The page is live with its
-                    own link before you've finished your coffee.
+                    Your name, your occasion, done. The page is live with its own link
+                    before you've finished your coffee.
                 </p>
             </article>
 
@@ -170,8 +180,8 @@
                 <span class="n">3</span>
                 <h3>Everyone piles in</h3>
                 <p>
-                    Guests leave wishes, upload photos and send cash gifts. No app, no
-                    sign-up, no bank details in the group chat.
+                    They leave wishes, upload photos and send cash gifts. No app, no
+                    sign-up, and your account number never goes in the group chat.
                 </p>
             </article>
 
@@ -179,8 +189,8 @@
                 <span class="n">4</span>
                 <h3>Keep all of it</h3>
                 <p>
-                    Withdraw to your bank whenever you like, and download the photobook of
-                    everything people said.
+                    Withdraw to your bank whenever you like. The wishes, the photos and the
+                    photobook stay on your page for good.
                 </p>
             </article>
         </div>
@@ -193,26 +203,20 @@
         <div class="band-head">
             <h2 class="h-section">It fills up with <span class="t-serif t-accent">real people</span>.</h2>
             <p class="lead">
-                Not a form. Not a spreadsheet. A page that looks like the people on it.
+                Not a form. Not a spreadsheet. A page that looks like the people who show up
+                for you.
             </p>
         </div>
 
+        {{-- Texture, not content: the strip is aria-hidden, so these carry no
+             alt text. Each cell is a 3:4 window onto a 16:9 frame, so only
+             pictures whose subject sits dead centre survive the crop. --}}
         <div class="band-strip" aria-hidden="true">
-            <figure class="ph">
-                <img src="https://images.unsplash.com/photo-1543269865-cbf427effbad?w=520&h=690&fit=crop&q=80" alt="" loading="lazy">
-            </figure>
-            <figure class="ph">
-                <img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=520&h=690&fit=crop&q=80" alt="" loading="lazy">
-            </figure>
-            <figure class="ph">
-                <img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=520&h=690&fit=crop&q=80" alt="" loading="lazy">
-            </figure>
-            <figure class="ph">
-                <img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=520&h=690&fit=crop&q=80" alt="" loading="lazy">
-            </figure>
-            <figure class="ph">
-                <img src="https://images.unsplash.com/photo-1509099836639-18ba1795216d?w=520&h=690&fit=crop&q=80" alt="" loading="lazy">
-            </figure>
+            @foreach (['traditional-wedding', 'tunde-birthday', 'graduation', 'baby-shower', 'call-to-bar'] as $frame)
+                <figure class="ph">
+                    <img src="{{ asset("images/covers/{$frame}.webp") }}" alt="" loading="lazy" decoding="async">
+                </figure>
+            @endforeach
         </div>
     </div>
 </section>
@@ -224,11 +228,11 @@
         {{-- Wishes --}}
         <div class="frow">
             <div class="frow-copy">
-                <p class="eyebrow"><i class="mdi mdi-message-text-outline"></i> Wishes</p>
-                <h2>A wall of everything people wanted to say.</h2>
+                <h2>A wall of everything people wanted to tell you.</h2>
                 <p class="lead">
-                    Guests write a message, add a photo, react to each other. It all lands on
-                    the page in real time — and none of it gets lost in a chat thread at 2am.
+                    They write a message, add a photo, react to each other. It lands on your
+                    page in real time and it stays there — not buried in a chat thread at 2am,
+                    not gone from your story in a day.
                 </p>
 
                 <ul class="checks">
@@ -282,12 +286,11 @@
         {{-- Money --}}
         <div class="frow frow-flip">
             <div class="frow-copy">
-                <p class="eyebrow"><i class="mdi mdi-cash-multiple"></i> Gifts &amp; money</p>
                 <h2>Real money, straight into your wallet.</h2>
                 <p class="lead">
-                    Guests pay by card or transfer through Paystack and Stripe. It lands in your
-                    CelebrateMi wallet instantly, and you withdraw to your bank whenever you feel
-                    like it.
+                    Nobody has to ask you for account details. Guests pay by card or transfer
+                    through Paystack and Stripe, it lands in your CelebrateMi wallet instantly,
+                    and you withdraw to your bank whenever you feel like it.
                 </p>
 
                 <ul class="checks">
@@ -346,12 +349,11 @@
         {{-- Photobook --}}
         <div class="frow">
             <div class="frow-copy">
-                <p class="eyebrow"><i class="mdi mdi-book-open-page-variant-outline"></i> Afterwards</p>
-                <h2>The day, bound into a photobook.</h2>
+                <h2>Your day, bound into a photobook.</h2>
                 <p class="lead">
                     When it's over we lay every wish and photo out as a book you can download,
-                    print or send back to everyone who wrote in it. This is the part people
-                    keep opening two years later.
+                    print or send back to everyone who wrote in it. This is the part you'll
+                    still be opening two years later.
                 </p>
 
                 <ul class="checks">
@@ -363,13 +365,13 @@
 
             <div class="frow-art">
                 <div class="mock mock-tinted">
+                    {{-- Six square cells standing in for a finished photobook. --}}
                     <div class="book" aria-hidden="true">
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1541532713592-79a0317b6b77?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1543269865-cbf427effbad?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
-                        <figure class="ph"><img src="https://images.unsplash.com/photo-1509099836639-18ba1795216d?w=340&h=340&fit=crop&q=80" alt="" loading="lazy"></figure>
+                        @foreach (['tunde-birthday', 'wedding', 'grandma-birthday', 'baby-shower', 'house-warming', 'graduation'] as $page)
+                            <figure class="ph">
+                                <img src="{{ asset("images/covers/{$page}.webp") }}" alt="" loading="lazy" decoding="async">
+                            </figure>
+                        @endforeach
                     </div>
 
                     <p class="book-cap">Sandra's 30th — 245 wishes, 180 photos</p>
@@ -404,24 +406,51 @@
     <div class="pattern pattern-dots pattern-fade"></div>
 
     <div class="wrap sec-inner">
-        <div class="stats-grid">
-            <div class="stat">
-                <p class="n">2.4k</p>
-                <p class="l">Celebrations created</p>
+        {{-- Real figures, or none at all. A count of celebrations that does not
+             exist yet is worth less than saying nothing — and on a site that
+             takes people's money, a good deal less than that. --}}
+        @php $stats = app(\App\Support\SiteStats::class); @endphp
+
+        @if ($stats->isMeaningful())
+            @php $figures = $stats->figures(); @endphp
+            <div class="stats-grid">
+                <div class="stat">
+                    <p class="n">{{ \App\Support\SiteStats::short($figures['celebrations']) }}</p>
+                    <p class="l">Celebrations kept</p>
+                </div>
+                <div class="stat">
+                    <p class="n">{{ \App\Support\SiteStats::short($figures['wishes']) }}</p>
+                    <p class="l">Wishes still online</p>
+                </div>
+                <div class="stat">
+                    <p class="n">{{ $figures['currency'] }}{{ \App\Support\SiteStats::short($figures['gifted']) }}</p>
+                    <p class="l">Gifted &amp; withdrawn</p>
+                </div>
+                <div class="stat">
+                    <p class="n">&infin;</p>
+                    <p class="l">How long pages last</p>
+                </div>
             </div>
-            <div class="stat">
-                <p class="n">140k</p>
-                <p class="l">Wishes written</p>
+        @else
+            <div class="stats-grid">
+                <div class="stat">
+                    <p class="n">30s</p>
+                    <p class="l">To publish a page</p>
+                </div>
+                <div class="stat">
+                    <p class="n">&#8358;0</p>
+                    <p class="l">To create one</p>
+                </div>
+                <div class="stat">
+                    <p class="n">2</p>
+                    <p class="l">Ways to be paid</p>
+                </div>
+                <div class="stat">
+                    <p class="n">&infin;</p>
+                    <p class="l">How long it lasts</p>
+                </div>
             </div>
-            <div class="stat">
-                <p class="n">&#8358;92m</p>
-                <p class="l">Gifted &amp; withdrawn</p>
-            </div>
-            <div class="stat">
-                <p class="n">4.9</p>
-                <p class="l">Average rating</p>
-            </div>
-        </div>
+        @endif
     </div>
 </section>
 
@@ -429,58 +458,32 @@
 <section class="sec">
     <div class="wrap">
         <div class="section-head is-centred">
-            <p class="eyebrow"><i class="mdi mdi-heart-outline"></i> From the people who did it</p>
             <h2 class="h-section">What actually happened.</h2>
         </div>
 
+        {{-- Three of the pages on /stories, quoted in the celebrant's own
+             words. The card links straight to the page it is talking about. --}}
         <div class="voices-grid">
-            <figure class="quote">
-                <span class="qmark" aria-hidden="true"><i class="mdi mdi-format-quote-close"></i></span>
-                <blockquote>
-                    We made a page for my mum's 60th and sent it to the family group. By the end
-                    of the week she had 200 wishes and enough gifted to finally send her on that
-                    trip. She still opens the photobook.
-                </blockquote>
-                <figcaption class="quote-author">
-                    <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=110&h=110&fit=crop&q=80" alt="" loading="lazy">
-                    <div>
-                        <p class="qa-name">Sarah K.</p>
-                        <p class="qa-meta">Planned her mum's 60th</p>
-                    </div>
-                </figcaption>
-            </figure>
+            @foreach ($voices as $voice)
+                <figure class="quote @if ($loop->index === 1) voice-tint @endif">
+                    <span class="qmark" aria-hidden="true"><i class="mdi mdi-format-quote-close"></i></span>
 
-            <figure class="quote voice-tint">
-                <span class="qmark" aria-hidden="true"><i class="mdi mdi-format-quote-close"></i></span>
-                <blockquote>
-                    The bit I didn't expect: cousins abroad who never make it to anything were
-                    the loudest people on the page. Nobody had to ask anyone for account details.
-                </blockquote>
-                <figcaption class="quote-author">
-                    <img src="https://images.unsplash.com/photo-1552058544-f2b08422138a?w=110&h=110&fit=crop&q=80" alt="" loading="lazy">
-                    <div>
-                        <p class="qa-name">Emmanuel D.</p>
-                        <p class="qa-meta">Graduation, 88 guests</p>
-                    </div>
-                </figcaption>
-            </figure>
+                    <blockquote>{{ $voice['pull_quote'] }}</blockquote>
 
-            <figure class="quote">
-                <span class="qmark" aria-hidden="true"><i class="mdi mdi-format-quote-close"></i></span>
-                <blockquote>
-                    I set it up on the bus. Genuinely. Then spent the next three days watching
-                    the wishes come in instead of chasing people for gift money.
-                </blockquote>
-                <figcaption class="quote-author">
-                    <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=110&h=110&fit=crop&q=80" alt="" loading="lazy">
-                    <div>
-                        <p class="qa-name">Daniela A.</p>
-                        <p class="qa-meta">Surprise party for her partner</p>
-                    </div>
-                </figcaption>
-            </figure>
+                    <figcaption class="quote-author">
+                        <img src="{{ \App\Support\StoryLibrary::photo($voice['avatar'], 110, 110) }}" alt="" loading="lazy">
+                        <div>
+                            <p class="qa-name">{{ $voice['quote_by'] }}</p>
+                            <p class="qa-meta">{{ $voice['quote_meta'] }}</p>
+                        </div>
+                    </figcaption>
+
+                    <a href="{{ route('stories.show', $voice['slug']) }}" data-nav class="link-arrow quote-link">
+                        Open their page <i class="mdi mdi-arrow-right"></i>
+                    </a>
+                </figure>
+            @endforeach
         </div>
-
         <p style="margin-top: 2.5rem; text-align: center">
             <a href="{{ route('stories') }}" data-nav class="link-arrow">
                 Read more stories <i class="mdi mdi-arrow-right"></i>
@@ -493,80 +496,30 @@
 <section class="sec sec-alt">
     <div class="wrap">
         <div class="section-head is-centred">
-            <p class="eyebrow"><i class="mdi mdi-help-circle-outline"></i> Before you ask</p>
             <h2 class="h-section">The questions we get most.</h2>
         </div>
 
+        {{-- One list, two audiences: rendered here for readers, and published
+             as FAQPage structured data by MainController. Editing the questions
+             in one place keeps the markup and the schema identical, which is
+             what search engines check for. --}}
         <div class="faq">
-            <details name="faq" open>
-                <summary>
-                    What does it cost?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    Creating a page is free, and you don't need a card to start. We take a small
-                    fee on cash gifts you receive — nothing else. Full breakdown on the
-                    <a href="{{ route('pricing') }}" data-nav>pricing page</a>.
-                </p>
-            </details>
+            @foreach (\App\Http\Controllers\MainController::FAQ as $item)
+                <details name="faq" @if ($loop->first) open @endif>
+                    <summary>
+                        {{ $item['q'] }}
+                        <i class="mdi mdi-plus" aria-hidden="true"></i>
+                    </summary>
+                    <p class="answer">
+                        {{ $item['a'] }}
 
-            <details name="faq">
-                <summary>
-                    Do my guests need to download anything?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    No. They open the link in whatever browser they already have, write their
-                    wish and — if they want to — send a gift. No app, no account, no password.
-                </p>
-            </details>
-
-            <details name="faq">
-                <summary>
-                    How do I get the money out?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    Gifts land in your CelebrateMi wallet as they arrive. Withdraw to your bank
-                    account whenever you like, in full or in parts. You can also leave it sitting
-                    in the wallet — there's no deadline.
-                </p>
-            </details>
-
-            <details name="faq">
-                <summary>
-                    Can guests send from another country?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    Yes. Local cards and transfers go through Paystack, international cards
-                    through Stripe. Your guest picks whichever suits them; you receive it the
-                    same way either way.
-                </p>
-            </details>
-
-            <details name="faq">
-                <summary>
-                    Is it only for birthdays?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    Weddings, graduations, baby showers, anniversaries, new jobs, housewarmings,
-                    memorials — anything where people want to say something and send something.
-                    You pick the occasion when you create the page.
-                </p>
-            </details>
-
-            <details name="faq">
-                <summary>
-                    Can I keep the amounts private?
-                    <i class="mdi mdi-plus" aria-hidden="true"></i>
-                </summary>
-                <p class="answer">
-                    You choose. Show a running total to build momentum, show individual gifts,
-                    or hide the numbers entirely and let the wishes be the visible part.
-                </p>
-            </details>
+                        @if ($loop->first)
+                            Full breakdown on the
+                            <a href="{{ route('pricing') }}" data-nav>pricing page</a>.
+                        @endif
+                    </p>
+                </details>
+            @endforeach
         </div>
     </div>
 </section>
@@ -588,10 +541,10 @@
 
         <h2>
             Go on then.<br>
-            <span class="t-serif">Make the fuss.</span>
+            <span class="t-serif">Let them spoil you.</span>
         </h2>
 
-        <p>Free to create, live in under a minute, and they'll never forget it.</p>
+        <p>Free to create, live in 30 seconds, and yours to keep afterwards.</p>
 
         <button
             type="button"
@@ -599,9 +552,9 @@
             x-on:click="$dispatch('open-modal', 'create-event')"
             class="btn btn-primary btn-lg"
         >
-            <i class="mdi mdi-party-popper"></i> Create their page
+            <i class="mdi mdi-party-popper"></i> Create my page
         </button>
 
-        <p class="cta-note">No card needed · Cancel any time · Takes about a minute</p>
+        <p class="cta-note">No card needed · Cancel any time · Takes 30 seconds</p>
     </div>
 </section>

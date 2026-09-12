@@ -14,7 +14,7 @@
             <td>
                 <p style="margin: 0 0 4px 0; font-size: 28px; text-align: center;">🎁</p>
                 <p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #7C3AED; text-align: center;">
-                    {{ $gift->platformGift->gift_name ?? 'Gift' }}
+                    {{ $gift->label() }}
                 </p>
 
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -27,7 +27,12 @@
                     <tr>
                         <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Amount</td>
                         <td style="padding: 6px 0; font-size: 13px; font-weight: 700; color: #7C3AED;">
-                            ${{ number_format($gift->amount, 2) }} USD
+                            {{-- The currency it was actually taken in. A naira
+                                 gift used to arrive here labelled as dollars. --}}
+                            @php
+                                $giftCurrency = strtoupper($gift->currency ?: config('currency.base'));
+                            @endphp
+                            {{ config("currency.currencies.{$giftCurrency}.symbol", '') }}{{ number_format($gift->amount, (int) config("currency.currencies.{$giftCurrency}.decimals", 2)) }} {{ $giftCurrency }}
                         </td>
                     </tr>
                     <tr>

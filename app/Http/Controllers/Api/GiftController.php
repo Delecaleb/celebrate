@@ -40,12 +40,12 @@ class GiftController extends Controller
         ]);
 
         $user         = $request->user();
-        $platformGift = PlatformAvailableGift::findOrFail($data['platform_gift_id']);
+        $platformGift = PlatformAvailableGift::with('prices')->findOrFail($data['platform_gift_id']);
         $userCurrency = $this->currency->forUser($user);
         $walletType   = strtoupper($userCurrency) === 'USD' ? 'global' : 'local';
-        $price        = $walletType === 'global'
-            ? (float) $platformGift->gift_price
-            : $this->currency->convert((float) $platformGift->gift_price, 'USD', $userCurrency);
+        // Same rule as the web checkout: the hand-set price for this currency,
+        // or the converted default.
+        $price        = $platformGift->priceIn($userCurrency);
 
         if (! $this->wallet->hasSufficientBalance($user, $price, $walletType)) {
             return response()->json([
@@ -118,12 +118,10 @@ class GiftController extends Controller
             'guest_email'      => [$guest ? 'required' : 'nullable', 'email', 'max:190'],
         ]);
 
-        $platformGift = PlatformAvailableGift::findOrFail($data['platform_gift_id']);
+        $platformGift = PlatformAvailableGift::with('prices')->findOrFail($data['platform_gift_id']);
         $currencyCode = $guest ? $this->currency->forVisitor() : $this->currency->forUser($user);
         $isUsd        = strtoupper($currencyCode) === 'USD';
-        $price        = $isUsd
-            ? (float) $platformGift->gift_price
-            : $this->currency->convert((float) $platformGift->gift_price, 'USD', $currencyCode);
+        $price        = $platformGift->priceIn($currencyCode);
         $reference    = 'gift-pay-'.Str::uuid();
 
         $gift = Gift::create([

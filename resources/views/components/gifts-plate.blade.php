@@ -18,6 +18,7 @@
             celebrationId:   {{ (int) $celebrationId }},
             sendUrl:         '{{ route('gift.send') }}',
             payUrl:          '{{ route('gift.payment.initiate') }}',
+            confirmUrl:      '{{ route('gift.payment.confirm') }}',
             csrfToken:       '{{ csrf_token() }}',
         })"
         @open-gift-detail.window="openFromExternal($event.detail)"
@@ -28,29 +29,54 @@
         <div x-show="view === 'grid'" x-transition>
 
             <p class="text-xs text-gray-400 px-6 pt-3 pb-1">
-                Select a gift to send to the celebrant
+                Tap a gift to send it — tap again to send more than one
             </p>
 
             <div class="grid grid-cols-3 md:grid-cols-6 gap-3 p-5 max-h-[380px] overflow-y-auto">
                 @foreach ($gifts as $gift)
                     {{-- displayPrice pre-computed in CelebrationController::show() --}}
+                    {{-- Drawn from the icon font unless a gift has real artwork
+                         uploaded. Nothing has to be uploaded for a gift to look
+                         finished, and the tile takes the gift's own colour. --}}
                     <button
                         type="button"
-                        @click="selectGift({
+                        @click="tapGift({
                             id:       {{ $gift->id }},
                             name:     '{{ addslashes($gift->gift_name) }}',
-                            image:    '{{ asset('storage/' . $gift->gift_image_url) }}',
+                            image:    '{{ $gift->gift_image_url ? asset('storage/' . $gift->gift_image_url) : '' }}',
+                            icon:     '{{ $gift->icon() }}',
+                            accent:   '{{ $gift->accent() }}',
+                            note:     '{{ addslashes($gift->gift_description ?? '') }}',
                             price:    {{ $gift->displayPrice }},
                             priceUsd: {{ (float) $gift->gift_price }},
                         })"
-                        class="rounded-2xl border border-gray-100 bg-white flex flex-col items-center justify-center p-2.5 hover:border-rose-300 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        {{-- The border carries the picked state, so the tile
+                             that is being counted up is obvious while tapping. --}}
+                        :class="selected?.id === {{ $gift->id }}
+                            ? 'border-rose-400 ring-2 ring-rose-200'
+                            : 'border-gray-100 hover:border-rose-300'"
+                        class="relative rounded-2xl border bg-white flex flex-col items-center justify-center p-2.5 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        title="{{ $gift->gift_description }}"
                     >
-                        <div class="w-12 h-12 mx-auto rounded-xl overflow-hidden bg-gray-50 border border-gray-100">
-                            <img
-                                src="{{ asset('storage/' . $gift->gift_image_url) }}"
-                                alt="{{ $gift->gift_name }}"
-                                class="object-cover w-full h-full"
-                            >
+                        <span x-show="pickedCount({{ $gift->id }}) > 0" x-cloak
+                              class="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow"
+                              x-text="pickedCount({{ $gift->id }})"></span>
+                        <div class="w-12 h-12 mx-auto rounded-xl overflow-hidden flex items-center justify-center"
+                             style="background:{{ $gift->accent() }}18;color:{{ $gift->accent() }}">
+                            @if ($gift->gift_image_url)
+                                {{-- contain, not cover: artwork is a transparent
+                                     icon, so cropping it to the tile edges would
+                                     clip the object and hide the accent tint
+                                     behind it. Matches the gift wall on the
+                                     celebration page, which already uses it. --}}
+                                <img
+                                    src="{{ asset('storage/' . $gift->gift_image_url) }}"
+                                    alt="{{ $gift->gift_name }}"
+                                    class="object-contain w-full h-full p-1"
+                                >
+                            @else
+                                <i class="mdi {{ $gift->icon() }}" style="font-size:1.5rem"></i>
+                            @endif
                         </div>
                         <h3 class="text-[10px] font-semibold text-center mt-1.5 line-clamp-1 text-gray-800">{{ $gift->gift_name }}</h3>
                         <p class="text-[10px] text-gray-400 text-center">
@@ -58,6 +84,29 @@
                         </p>
                     </button>
                 @endforeach
+            </div>
+
+            {{-- Outside the scrolling grid, so the running total stays in view
+                 while tapping. --}}
+            <div x-show="selected" x-cloak x-transition
+                 class="sticky bottom-0 flex items-center gap-3 border-t border-gray-100 bg-white px-5 py-3">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold text-gray-900 truncate">
+                        <span x-text="quantity"></span> ×
+                        <span x-text="selected?.name"></span>
+                    </p>
+                    <button type="button" @click="clearPick()"
+                            class="text-xs text-gray-400 hover:text-gray-700 underline">
+                        Clear
+                    </button>
+                </div>
+
+                <p class="shrink-0 text-lg font-black text-rose-500" x-text="lineTotalLabel"></p>
+
+                <button type="button" @click="review()"
+                        class="shrink-0 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800">
+                    Continue
+                </button>
             </div>
 
         </div>
@@ -76,17 +125,54 @@
 
             {{-- Gift card --}}
             <div class="flex gap-4 items-center bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                <img
-                    {{-- optional chaining: this panel is x-show, so Alpine
-                         evaluates these while `selected` is still null --}}
-                    :src="selected?.image"
-                    :alt="selected?.name"
-                    class="w-18 h-18 rounded-xl object-cover border border-gray-100 shrink-0"
-                    style="width:4.5rem;height:4.5rem"
-                >
-                <div>
+                {{-- optional chaining: this panel is x-show, so Alpine
+                     evaluates these while `selected` is still null --}}
+                <template x-if="selected?.image">
+                    <img
+                        :src="selected?.image"
+                        :alt="selected?.name"
+                        class="rounded-xl object-cover border border-gray-100 shrink-0"
+                        style="width:4.5rem;height:4.5rem"
+                    >
+                </template>
+
+                <template x-if="!selected?.image">
+                    <span class="rounded-xl flex items-center justify-center shrink-0"
+                          style="width:4.5rem;height:4.5rem"
+                          :style="`background:${selected?.accent}18;color:${selected?.accent}`">
+                        <i class="mdi" :class="selected?.icon" style="font-size:2.1rem"></i>
+                    </span>
+                </template>
+
+                <div class="min-w-0">
                     <h3 class="font-bold text-base text-gray-900" x-text="selected?.name"></h3>
-                    <p class="text-2xl font-black text-rose-500 mt-1" x-text="selected ? visitorSymbol + formatNum(selected.price) : ''"></p>
+                    <p class="text-2xl font-black text-rose-500 mt-1" x-text="lineTotalLabel"></p>
+                    {{-- Only worth saying once there is more than one. --}}
+                    <p class="text-xs text-gray-500" x-show="quantity > 1" x-cloak
+                       x-text="selected ? visitorSymbol + formatNum(selected.price) + ' each' : ''"></p>
+                    <p class="text-xs text-gray-500 mt-1" x-text="selected?.note"></p>
+                </div>
+            </div>
+
+            {{-- Same count as the grid, adjustable without going back. --}}
+            <div class="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white px-4 py-3">
+                <span class="text-sm font-semibold text-gray-700">How many?</span>
+
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="bump(-1)" :disabled="quantity <= 1"
+                            aria-label="One fewer"
+                            class="h-9 w-9 rounded-full border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-35 disabled:cursor-not-allowed hover:border-gray-900">
+                        &minus;
+                    </button>
+
+                    <span class="w-9 text-center text-base font-black text-gray-900"
+                          aria-live="polite" x-text="quantity"></span>
+
+                    <button type="button" @click="bump(1)" :disabled="quantity >= maxQuantity"
+                            aria-label="One more"
+                            class="h-9 w-9 rounded-full border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-35 disabled:cursor-not-allowed hover:border-gray-900">
+                        +
+                    </button>
                 </div>
             </div>
 

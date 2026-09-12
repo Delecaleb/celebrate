@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PaymentSystem\CurrencyService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -70,6 +71,45 @@ class Wish extends Model
     public function celebration()
     {
         return $this->belongsTo(Celebration::class);
+    }
+
+    /**
+     * What has actually been raised for this item, in the currency asked for.
+     *
+     * Summed from the contributions themselves, never read off current_amount.
+     *
+     * current_amount is held in the item's own currency, converted at whatever
+     * the live rate happened to be on the day each payment landed. Reading it
+     * back out through the item's frozen conversion_rate therefore returns a
+     * figure nobody ever paid — two different rates applied to the same money.
+     * On a real page that overstated the total by 22%.
+     *
+     * Here each contribution is converted exactly once, from the currency it
+     * was charged in. A naira contributor's naira count as naira on a naira
+     * page, which is the only answer a contributor can check against their own
+     * bank statement.
+     *
+     * @param  iterable<int, WishContribution>|null  $paid  already-loaded paid
+     *         rows for this item, so a page listing many items does not go back
+     *         to the database for each one.
+     */
+    public function raisedIn(string $currency, ?CurrencyService $service = null, ?iterable $paid = null): float
+    {
+        $service ??= app(CurrencyService::class);
+        $paid    ??= $this->contributions()->where('payment_status', 'paid')->get();
+        $base      = config('currency.base');
+
+        $total = 0.0;
+
+        foreach ($paid as $contribution) {
+            $total += $service->convert(
+                (float) $contribution->amount,
+                $contribution->currency ?: $base,
+                $currency
+            );
+        }
+
+        return round($total, 2);
     }
 
     public function contributions()

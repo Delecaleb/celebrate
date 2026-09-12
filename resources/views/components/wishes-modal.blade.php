@@ -16,6 +16,7 @@
         isOwner:         {{ $isOwner? 'true' : 'false' }},
         walletBaseUrl:   '{{ url('/wish') }}',
         payBaseUrl:      '{{ url('/wish') }}',
+        confirmUrl:      '{{ route('wish.contribute.confirm') }}',
         csrfToken:       '{{ csrf_token() }}',
     })"
     @open-wish.window="openWish($event.detail)"

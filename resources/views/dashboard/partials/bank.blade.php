@@ -52,9 +52,6 @@
                             <i class="mdi mdi-bank-off-outline empty-icon"></i>
                             <h3>No bank account saved</h3>
                             <p>Add a bank account so we can process your withdrawal requests quickly.</p>
-                            <button class="btn-empty" @click="$dispatch('open-modal', 'add-bank')">
-                                <i class="mdi mdi-plus"></i> Add bank account
-                            </button>
                         </div>
                     @else
                         <div class="bank-list">
@@ -68,7 +65,13 @@
                                                 <span class="default-badge">Default</span>
                                             @endif
                                         </div>
-                                        <p class="bank-meta">{{ $ba->account_number }} · {{ $ba->account_name }}</p>
+                                        <p class="bank-meta">
+                                            {{ $ba->account_number }} · {{ $ba->account_name }}
+                                            @if ($ba->is_verified)
+                                                <i class="mdi mdi-check-decagram" title="Confirmed with the bank"
+                                                   style="color:var(--ok)"></i>
+                                            @endif
+                                        </p>
                                     </div>
                                     <div class="bank-actions">
                                         @unless ($ba->is_default)
@@ -85,6 +88,7 @@
                                                 editingBank = {
                                                     id: {{ $ba->id }},
                                                     bank_name: '{{ addslashes($ba->bank_name) }}',
+                                                    bank_code: '{{ $ba->bank_code }}',
                                                     account_number: '{{ $ba->account_number }}',
                                                     account_name: '{{ addslashes($ba->account_name) }}'
                                                 };

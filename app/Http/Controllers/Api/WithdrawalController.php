@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\WithdrawalResource;
 use App\Models\Withdrawal;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +36,19 @@ class WithdrawalController extends Controller
 
         $user        = $request->user();
         $bankAccount = $user->bankAccounts()->findOrFail($request->bank_account_id);
-        $walletType  = $request->wallet_type;
+
+        // Same gate as the web controller: money only goes to an account the
+        // bank itself confirmed.
+        if (app(PaystackService::class)->isConfigured() && ! $bankAccount->is_verified) {
+            return response()->json([
+                'message' => 'That bank account has not been confirmed with your bank yet. Save it again to verify it.',
+                'code'    => 'bank_account_unverified',
+            ], 422);
+        }
+
+        // A USD user only has the global wallet — taking 'local' at face value
+        // here checked one balance and debited the other.
+        $walletType  = $this->wallet->resolveWalletType($user, $request->wallet_type);
         $amount      = (float) $request->amount;
         $currency    = $walletType === 'global' ? 'USD' : $this->currency->forUser($user);
 
@@ -82,8 +95,11 @@ class WithdrawalController extends Controller
             ->additional([
                 'message' => 'Withdrawal request submitted. We will process it within 1–2 business days.',
                 'wallet'  => [
-                    'local'  => round($this->wallet->balance($user->fresh(), 'local'), 2),
-                    'global' => round($this->wallet->balance($user->fresh(), 'global'), 2),
+                    'has_local_wallet' => $this->wallet->hasLocalWallet($user),
+                    'local'            => $this->wallet->hasLocalWallet($user)
+                        ? round($this->wallet->balance($user->fresh(), 'local'), 2)
+                        : 0.0,
+                    'global'           => round($this->wallet->balance($user->fresh(), 'global'), 2),
                 ],
             ])
             ->response()

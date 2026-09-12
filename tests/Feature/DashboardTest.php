@@ -272,18 +272,25 @@ class DashboardTest extends TestCase
         $response->assertSee('Spent on a gift');
     }
 
-    public function test_the_wallet_page_shows_both_balances_for_a_usd_user(): void
+    /**
+     * The local wallet exists so countries without USD checkout can hold their
+     * own currency. Where USD checkout works there is nothing for it to hold,
+     * so a USD user sees one wallet — never a second, also-USD balance.
+     */
+    public function test_the_wallet_page_shows_one_wallet_for_a_usd_user(): void
     {
         $user = $this->user([
             'currency'              => 'USD',
-            'wallet_balance'        => 10.00,
+            'wallet_balance'        => 0.00,
             'global_wallet_balance' => 20.00,
         ]);
 
         $this->actingAs($user)->get(route('dashboard.wallet'))
             ->assertOk()
-            ->assertSee('Local wallet (USD)')
-            ->assertSee('Global wallet (USD)');
+            ->assertDontSee('Local wallet')
+            ->assertDontSee('Global wallet (USD)')
+            ->assertSee('Wallet (USD)')
+            ->assertSee('20.00');
     }
 
     public function test_the_wallet_page_hides_the_disclosure_when_there_are_no_transactions(): void

@@ -28,7 +28,8 @@ class ProfileTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->patch('/profile', [
-                'name' => 'Test User',
+                'first_name' => 'Test',
+                'last_name'  => 'User',
                 'email' => 'test@example.com',
             ]);
 
@@ -38,7 +39,8 @@ class ProfileTest extends TestCase
 
         $user->refresh();
 
-        $this->assertSame('Test User', $user->name);
+        $this->assertSame('Test', $user->first_name);
+        $this->assertSame('User', $user->last_name);
         $this->assertSame('test@example.com', $user->email);
         $this->assertNull($user->email_verified_at);
     }
@@ -61,39 +63,45 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
-    public function test_user_can_delete_their_account(): void
+    /**
+     * There is no self-service account deletion, and there should not be one.
+     *
+     * An account holds a wallet balance, celebrations other people have given
+     * money to, and the gift records behind those payments. Letting the owner
+     * erase all of it with a password box destroys other people's receipts,
+     * so closing an account is a support conversation.
+     */
+    public function test_an_account_cannot_be_deleted_from_the_profile_page(): void
     {
         $user = User::factory()->create();
 
-        $response = $this
-            ->actingAs($user)
-            ->delete('/profile', [
-                'password' => 'password',
-            ]);
-
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect('/');
-
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
-    }
-
-    public function test_correct_password_must_be_provided_to_delete_account(): void
-    {
-        $user = User::factory()->create();
-
-        $response = $this
-            ->actingAs($user)
-            ->from('/profile')
-            ->delete('/profile', [
-                'password' => 'wrong-password',
-            ]);
-
-        $response
-            ->assertSessionHasErrorsIn('userDeletion', 'password')
-            ->assertRedirect('/profile');
+        $this->actingAs($user)->delete('/profile', ['password' => 'password'])
+            ->assertStatus(405);
 
         $this->assertNotNull($user->fresh());
+        $this->assertAuthenticated();
+    }
+
+    public function test_the_profile_page_offers_no_way_to_delete_an_account(): void
+    {
+        $user = User::factory()->create();
+
+        $html = $this->actingAs($user)->get('/profile')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('Delete Account', $html);
+        $this->assertStringNotContainsString('profile.destroy', $html);
+    }
+
+    public function test_the_page_uses_the_app_shell_not_the_breeze_default(): void
+    {
+        $user = User::factory()->create(['first_name' => 'Ada', 'last_name' => 'Obi']);
+
+        $html = $this->actingAs($user)->get('/profile')->assertOk()->getContent();
+
+        // The dashboard rail and the house form styles, not Breeze components.
+        $this->assertStringContainsString('page-head', $html);
+        $this->assertStringContainsString('m-input', $html);
+        $this->assertStringContainsString('value="Ada"', $html);
+        $this->assertStringNotContainsString('x-text-input', $html);
     }
 }

@@ -150,7 +150,14 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td>${{ number_format($u->wallet_balance ?? 0, 2) }}</td>
+                                {{-- USD users have one wallet; everyone else holds a local balance too. --}}
+                                <td>
+                                    @if (strtoupper($u->currency ?? 'USD') === 'USD')
+                                        ${{ number_format($u->global_wallet_balance ?? 0, 2) }}
+                                    @else
+                                        {{ config("currency.currencies.{$u->currency}.symbol", $u->currency) }}{{ number_format($u->wallet_balance ?? 0, 2) }}
+                                    @endif
+                                </td>
                                 <td style="color:var(--muted);font-size:0.78rem">{{ $u->created_at->format('M j, Y') }}</td>
                             </tr>
                         @endforeach

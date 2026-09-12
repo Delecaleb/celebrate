@@ -128,7 +128,10 @@ Route::prefix('v1')->group(function () {
         Route::post('wallet/fund',          [WalletController::class, 'fund']);
         Route::post('wallet/fund/verify',   [WalletController::class, 'verifyFunding']);
 
-        Route::get('bank-accounts',    [BankAccountController::class, 'index']);
+        Route::get('bank-accounts',       [BankAccountController::class, 'index']);
+        Route::get('bank-accounts/banks', [BankAccountController::class, 'banks']);
+        Route::post('bank-accounts/resolve', [BankAccountController::class, 'resolve'])
+            ->middleware('throttle:30,1');
         Route::post('bank-accounts',   [BankAccountController::class, 'store']);
         Route::put('bank-accounts/{bankAccount}',    [BankAccountController::class, 'update']);
         Route::delete('bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy']);

@@ -18,7 +18,9 @@ class AdminController extends Controller
             'events'              => Celebration::count(),
             'events_live'         => Celebration::where('status', 'published')->count(),
             'withdrawals_pending' => Withdrawal::where('status', 'pending')->count(),
-            'total_wallet'        => User::sum('wallet_balance'),
+            // The tile is labelled USD, so it can only be the USD wallets —
+            // local balances are in mixed currencies and don't sum to a number.
+            'total_wallet'        => User::sum('global_wallet_balance'),
             'total_credited'      => WalletTransaction::where('type', 'credit')->where('status', 'completed')->sum('amount'),
             'total_withdrawn'     => Withdrawal::whereIn('status', ['completed', 'processing'])->sum('amount'),
         ];
@@ -98,6 +100,20 @@ class AdminController extends Controller
             'processed_at' => now(),
         ]);
 
+        \App\Models\AdminAuditLog::record(
+            'admin.withdrawal.approved',
+            sprintf(
+                'Approved withdrawal #%d — %s %s to %s ••%s',
+                $withdrawal->id,
+                $withdrawal->currency,
+                number_format((float) $withdrawal->amount, 2),
+                $withdrawal->bank_name,
+                substr((string) $withdrawal->bank_account_number, -4)
+            ),
+            $withdrawal,
+            $withdrawal->reference,
+        );
+
         return back()->with('success', "Withdrawal #{$withdrawal->id} marked as completed.");
     }
 
@@ -125,6 +141,19 @@ class AdminController extends Controller
             'note'         => $request->reason,
             'processed_at' => now(),
         ]);
+
+        \App\Models\AdminAuditLog::record(
+            'admin.withdrawal.rejected',
+            sprintf(
+                'Rejected withdrawal #%d — %s %s refunded to the wallet. Reason: %s',
+                $withdrawal->id,
+                $withdrawal->currency,
+                number_format((float) $withdrawal->amount, 2),
+                $request->reason
+            ),
+            $withdrawal,
+            $withdrawal->reference,
+        );
 
         return back()->with('success', "Withdrawal #{$withdrawal->id} rejected and wallet refunded.");
     }

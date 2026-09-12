@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Wish;
 use App\Models\WishContribution;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\WalletService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\PaystackService;
@@ -21,6 +22,7 @@ class WishContributionController extends Controller
         private CurrencyService $currency,
         private StripeService   $stripe,
         private PaystackService $paystack,
+        private PaymentFulfilmentService $fulfilment,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -58,7 +60,7 @@ class WishContributionController extends Controller
             'wish_id'             => $wish->id,
             'celebration_id'      => $wish->celebration_id,
             'contributor_user_id' => $user->id,
-            'contributor_name'    => $user->first_name . ' ' . $user->last_name,
+            'contributor_name'    => trim($user->first_name . ' ' . $user->last_name),
             'contributor_email'   => $user->email,
             'amount'              => $amountDisplay,
             'currency'            => $visitorCurrency,
@@ -88,7 +90,10 @@ class WishContributionController extends Controller
             user:             $owner,
             amount:           $amountDisplay,
             description:      "Wish contribution from {$user->first_name}: {$wish->name}",
-            reference:        $reference,
+            // Two legs, one transfer — and the reference column is unique, so
+            // they cannot be the same. Sharing one killed every wallet
+            // contribution on the credit.
+            reference:        $reference . '-in',
             source:           $contribution,
             originalAmount:   $amountDisplay,
             originalCurrency: $visitorCurrency,
@@ -107,7 +112,9 @@ class WishContributionController extends Controller
 
         $fresh          = $wish->fresh();
         $targetDisplay  = $fresh->displayAmount($visitorCurrency);
-        $currentDisplay = (float) $fresh->current_amount;
+        // Not current_amount: that is in the item's currency, and this response
+        // is labelled with the visitor's symbol.
+        $currentDisplay = $fresh->raisedIn($visitorCurrency, $this->currency);
 
         return response()->json([
             'success'     => true,
@@ -175,6 +182,8 @@ class WishContributionController extends Controller
 
                 return response()->json([
                     'success'           => true,
+                    'provider'          => 'stripe',
+                    'reference'         => $reference,
                     'authorization_url' => $checkoutUrl,
                 ]);
             } catch (\Throwable $e) {
@@ -222,8 +231,82 @@ class WishContributionController extends Controller
         }
 
         return response()->json([
-            'success'           => true,
+            'success'   => true,
+            'provider'  => 'paystack',
+            'reference' => $reference,
+
+            // Lets the browser open Paystack's own frame over the registry
+            // instead of sending the contributor away. The amount is already
+            // fixed by the call above, so nothing about the charge is decided
+            // in the page.
+            'access_code'       => $response->json('data.access_code'),
             'authorization_url' => $response->json('data.authorization_url'),
+        ]);
+    }
+
+    /**
+     * Settle a contribution paid through the inline checkout.
+     *
+     * The browser's word counts for nothing here — the reference is checked
+     * against Paystack before a naira moves, exactly as the redirect callback
+     * does. Safe to call twice; fulfilWishContribution() takes a lock and
+     * settles once, so racing the webhook is expected.
+     */
+    public function confirmPayment(Request $request)
+    {
+        $request->validate([
+            'reference' => ['required', 'string', 'max:120'],
+        ]);
+
+        $reference    = $request->input('reference');
+        $contribution = WishContribution::where('payment_reference', $reference)->first();
+
+        if (! $contribution) {
+            return response()->json([
+                'success' => false,
+                'message' => 'We could not find that contribution. If you were charged, contact support and quote ' . $reference . '.',
+            ], 404);
+        }
+
+        $secretKey = config('services.paystack.secret');
+        $response  = Http::withToken($secretKey)
+            ->get("https://api.paystack.co/transaction/verify/{$reference}");
+
+        if (! $response->successful()) {
+            Log::error('Inline contribution verification could not reach Paystack', [
+                'reference' => $reference,
+            ]);
+
+            // The money may already be gone. Say nothing that sounds like a
+            // refusal — the webhook and payments:reconcile still run.
+            return response()->json([
+                'success' => false,
+                'pending' => true,
+                'message' => 'Your payment went through but we could not confirm it just yet. It will appear on the page within a few minutes.',
+            ], 202);
+        }
+
+        if ($response->json('data.status') !== 'success') {
+            Log::warning('Inline contribution was not successful at Paystack', [
+                'reference' => $reference,
+                'status'    => $response->json('data.status'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'That payment did not complete. Nothing has been charged.',
+            ], 422);
+        }
+
+        $status = $this->fulfilment->fulfilWishContribution($reference);
+
+        return response()->json([
+            'success'      => true,
+            'already'      => $status === PaymentFulfilmentService::ALREADY,
+            'message'      => $status === PaymentFulfilmentService::ALREADY
+                ? 'That contribution was already processed!'
+                : '🎉 Thank you — your contribution has been added!',
+            'redirect_url' => route('celebrations.show', $contribution->celebration->slug),
         ]);
     }
 
@@ -263,32 +346,15 @@ class WishContributionController extends Controller
                 ->with('success', 'Your contribution was already processed!');
         }
 
-        $contribution->update(['payment_status' => 'paid']);
-
-        $wish = $contribution->wish;
-        $incrementAmount = $contribution->amount;
-        if (strtoupper($contribution->currency) !== strtoupper($wish->currency)) {
-            $incrementAmount = $this->currency->convert($contribution->amount, $contribution->currency, $wish->currency);
-        }
-        $wish->increment('current_amount', $incrementAmount);
-        $wish->increment('contribution_count');
-
-        // Credit celebration owner's local wallet
-        $owner = $contribution->celebration->user;
-        $this->wallet->credit(
-            user:             $owner,
-            amount:           $contribution->amount,
-            description:      "Wish contribution: {$contribution->wish->name}",
-            reference:        $contribution->payment_reference,
-            source:           $contribution,
-            originalAmount:   $contribution->amount,
-            originalCurrency: $contribution->currency,
-            walletType:       'local'
-        );
+        // Idempotent: the webhook may have settled this already, or be doing it
+        // right now. Whichever gets the lock first does the work.
+        $status = $this->fulfilment->fulfilWishContribution($reference);
 
         return redirect()
             ->route('celebrations.show', $contribution->celebration->slug)
-            ->with('success', '🎉 Your contribution has been added — thank you!');
+            ->with('success', $status === PaymentFulfilmentService::ALREADY
+                ? 'Your contribution was already processed!'
+                : '🎉 Your contribution has been added — thank you!');
     }
 
     // -------------------------------------------------------------------------
@@ -325,31 +391,12 @@ class WishContributionController extends Controller
                 ->with('error', 'We could not confirm that payment. If you were charged, contact support and quote ' . $reference . '.');
         }
 
-        $contribution->update(['payment_status' => 'paid']);
-
-        $wish = $contribution->wish;
-        $incrementAmount = $contribution->amount;
-        if (strtoupper($contribution->currency) !== strtoupper($wish->currency)) {
-            $incrementAmount = $this->currency->convert($contribution->amount, $contribution->currency, $wish->currency);
-        }
-        $wish->increment('current_amount', $incrementAmount);
-        $wish->increment('contribution_count');
-
-        // Credit celebration owner's global wallet
-        $owner = $contribution->celebration->user;
-        $this->wallet->credit(
-            user:             $owner,
-            amount:           $contribution->amount,
-            description:      "Wish contribution: {$contribution->wish->name}",
-            reference:        $contribution->payment_reference,
-            source:           $contribution,
-            originalAmount:   $contribution->amount,
-            originalCurrency: $contribution->currency,
-            walletType:       'global'
-        );
+        $status = $this->fulfilment->fulfilWishContribution($reference);
 
         return redirect()
             ->route('celebrations.show', $contribution->celebration->slug)
-            ->with('success', '🎉 Your contribution has been added — thank you!');
+            ->with('success', $status === PaymentFulfilmentService::ALREADY
+                ? 'Your contribution was already processed!'
+                : '🎉 Your contribution has been added — thank you!');
     }
 }

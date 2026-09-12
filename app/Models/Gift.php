@@ -12,6 +12,7 @@ class Gift extends Model
     protected $fillable = [
         'celebration_id',
         'platform_gift_id',
+        'quantity',
         'sender_user_id',
         'sender_name',
         'sender_email',
@@ -30,7 +31,22 @@ class Gift extends Model
         'amount'          => 'decimal:2',
         'conversion_rate' => 'decimal:6',
         'is_anonymous'    => 'boolean',
+        'quantity'        => 'integer',
     ];
+
+    /**
+     * The gift as a person would say it: "Warm Hug", or "Warm Hug × 3".
+     *
+     * Rows written before quantity existed have no value for it, so anything
+     * falsy counts as one.
+     */
+    public function label(): string
+    {
+        $name     = $this->platformGift?->gift_name ?? 'Platform Gift';
+        $quantity = max(1, (int) $this->quantity);
+
+        return $quantity > 1 ? "{$name} × {$quantity}" : $name;
+    }
 
     public function celebration()
     {

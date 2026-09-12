@@ -4,11 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Sign in — CelebrateMi</title>
+    {{-- Auth screens stay out of the index; the meta component still gives
+         them icons, theme colour and a card if the link is ever shared. --}}
+    <x-seo title="Sign in — CelebrateMi" noindex />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    {{-- The landing page's type system, so signing in doesn't feel like a
+         different product: Outfit for display, Plus Jakarta Sans for text. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -32,7 +36,7 @@
         html, body { height: 100%; }
 
         body {
-            font-family: 'Inter', system-ui, sans-serif;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             background: var(--off);
             color: var(--dark);
             display: flex;
@@ -51,11 +55,13 @@
         }
 
         .brand {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 700;
             font-size: 1.4rem;
             color: var(--dark);
             text-decoration: none;
-            letter-spacing: -0.01em;
+            /* the wordmark's tracking on the marketing nav */
+            letter-spacing: -0.045em;
         }
 
         .form-area {
@@ -66,20 +72,15 @@
             padding: 3rem 0 2rem;
         }
 
-        .form-eyebrow {
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-        }
-
         h1 {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 700;
             font-size: 2.6rem;
-            line-height: 1.08;
-            letter-spacing: -0.025em;
+            /* Outfit sets tighter and rides higher than a serif at the same
+               size, so these match the marketing headings rather than the
+               values the old serif needed. */
+            line-height: 1.04;
+            letter-spacing: -0.035em;
             margin-bottom: 0.6rem;
         }
 
@@ -257,9 +258,11 @@
         }
 
         .photo-quote blockquote {
-            font-family: 'DM Serif Display', Georgia, serif;
+            font-family: 'Outfit', system-ui, sans-serif;
+            font-weight: 500;
             font-size: 1.55rem;
             line-height: 1.4;
+            letter-spacing: -0.025em;
             margin-bottom: 1rem;
             max-width: 440px;
         }
@@ -292,7 +295,6 @@
 
         <div class="form-area">
 
-            <p class="form-eyebrow">Welcome back</p>
             <h1>Sign in to<br>your account</h1>
             <p class="form-sub">Pick up where you left off.</p>
 
@@ -362,15 +364,15 @@
     <!-- Right: photo -->
     <div class="panel-right">
         <img
-            src="https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=1000&h=1400&fit=crop&q=80"
-            alt="Birthday celebration"
-            loading="eager"
+            src="{{ asset('images/covers/baby-shower.webp') }}"
+            alt="A woman at her baby shower, friends gathered around her chair"
+            loading="eager" decoding="async"
         >
         <div class="photo-quote">
             <blockquote>
                 Every moment worth celebrating deserves a page of its own.
             </blockquote>
-            <p class="photo-quote-meta">Joined by 2,400+ families this month</p>
+            <p class="photo-quote-meta">Free to create · Live in 30 seconds · Yours to keep</p>
         </div>
     </div>
 

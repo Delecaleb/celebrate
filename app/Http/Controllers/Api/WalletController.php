@@ -33,21 +33,13 @@ class WalletController extends Controller
 
     public function show(Request $request)
     {
-        $user     = $request->user();
-        $currency = $this->currency->forUser($user);
-
-        return response()->json([
-            'currency' => $currency,
-            'symbol'   => config("currency.currencies.{$currency}.symbol", $currency),
-            'local'    => round($this->wallet->balance($user, 'local'), 2),
-            'global'   => round($this->wallet->balance($user, 'global'), 2),
-        ]);
+        return response()->json($this->balancesFor($request->user()));
     }
 
     public function transactions(Request $request)
     {
         return WalletTransactionResource::collection(
-            $request->user()->walletTransactions()->latest()->paginate(50)
+            $request->user()->walletTransactions()->with('transactionable')->latest()->paginate(50)
         );
     }
 
@@ -62,7 +54,8 @@ class WalletController extends Controller
         ]);
 
         $user       = $request->user();
-        $walletType = $request->input('wallet_type', 'local');
+        // A USD user has no local wallet to fund, whatever the app sent.
+        $walletType = $this->wallet->resolveWalletType($user, $request->input('wallet_type', 'local'));
         $amount     = (float) $request->amount;
         $reference  = 'wf-'.Str::uuid();
         $currency   = $walletType === 'global' ? 'USD' : $this->currency->forUser($user);
@@ -162,9 +155,7 @@ class WalletController extends Controller
 
         DB::transaction(function () use ($tx) {
             $tx->update(['status' => 'completed']);
-
-            $column = $tx->wallet_type === 'global' ? 'global_wallet_balance' : 'wallet_balance';
-            $tx->user->increment($column, (float) $tx->amount);
+            $tx->user->increment($this->wallet->balanceColumn($tx->user, $tx->wallet_type), (float) $tx->amount);
         });
 
         $symbol = config("currency.currencies.{$tx->original_currency}.symbol", $tx->original_currency);
@@ -189,13 +180,17 @@ class WalletController extends Controller
 
     private function balancesFor($user): array
     {
-        $currency = $this->currency->forUser($user);
+        $currency       = $this->currency->forUser($user);
+        $hasLocalWallet = $this->wallet->hasLocalWallet($user);
 
         return [
-            'currency' => $currency,
-            'symbol'   => config("currency.currencies.{$currency}.symbol", $currency),
-            'local'    => round($this->wallet->balance($user, 'local'), 2),
-            'global'   => round($this->wallet->balance($user, 'global'), 2),
+            'currency'         => $currency,
+            'symbol'           => config("currency.currencies.{$currency}.symbol", $currency),
+            // USD users have one wallet. `local` stays in the payload as 0 so
+            // older builds don't break, but the app keys off this flag.
+            'has_local_wallet' => $hasLocalWallet,
+            'local'            => $hasLocalWallet ? round($this->wallet->balance($user, 'local'), 2) : 0.0,
+            'global'           => round($this->wallet->balance($user, 'global'), 2),
         ];
     }
 

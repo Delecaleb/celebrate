@@ -25,21 +25,28 @@
                     <div class="flash-err"><i class="mdi mdi-alert-circle"></i> {{ session('error') }}</div>
                 @endif
 
-                {{-- ── Balances ──────────────────────────────────────── --}}
+                {{-- ── Balances ──────────────────────────────────────────
+                     The local wallet only exists where USD checkout doesn't.
+                     Somewhere USD works, one wallet is the whole story — a
+                     second, also-USD balance beside it would just be two piles
+                     of the same money.
+                --}}
                 <div class="wallet-grid">
-                    <div class="wallet-hero">
-                        <div class="wallet-chip">
-                            <i class="mdi mdi-wallet" style="font-size:0.9rem"></i>
-                            Local wallet ({{ $userCurrency }})
+                    @if ($hasLocalWallet)
+                        <div class="wallet-hero">
+                            <div class="wallet-chip">
+                                <i class="mdi mdi-wallet" style="font-size:0.9rem"></i>
+                                Local wallet ({{ $userCurrency }})
+                            </div>
+                            <p class="wallet-label">Available balance</p>
+                            <p class="wallet-balance">{{ $currencySymbol }}{{ number_format($localDisplay, 2) }}</p>
                         </div>
-                        <p class="wallet-label">Available balance</p>
-                        <p class="wallet-balance">{{ $currencySymbol }}{{ number_format($localDisplay, 2) }}</p>
-                    </div>
+                    @endif
 
                     <div class="wallet-hero is-global">
                         <div class="wallet-chip">
-                            <i class="mdi mdi-earth" style="font-size:0.9rem"></i>
-                            Global wallet (USD)
+                            <i class="mdi {{ $hasLocalWallet ? 'mdi-earth' : 'mdi-wallet' }}" style="font-size:0.9rem"></i>
+                            {{ $hasLocalWallet ? 'Global wallet (USD)' : 'Wallet (USD)' }}
                         </div>
                         <p class="wallet-label">Available balance</p>
                         <p class="wallet-balance">${{ number_format($globalDisplay, 2) }}</p>
@@ -96,6 +103,9 @@
                                         </div>
                                         <div class="tx-info">
                                             <p class="tx-desc">{{ $tx->description ?: ($tx->type === 'credit' ? 'Credit received' : 'Debit') }}</p>
+                                            @if ($giver = $tx->giverName())
+                                                <p class="tx-from"><i class="mdi mdi-account-heart-outline"></i> from {{ $giver }}</p>
+                                            @endif
                                             <p class="tx-meta">
                                                 {{ $tx->created_at->format('M j, Y · g:ia') }}
                                                 @if ($tx->reference) · Ref: {{ $tx->reference }} @endif
@@ -103,7 +113,7 @@
                                         </div>
                                         <div class="tx-right">
                                             <p class="tx-amount {{ $tx->type }}">
-                                                {{ $tx->type === 'credit' ? '+' : '−' }}{{ $currencySymbol }}{{ number_format($tx->amount, 2) }}
+                                                {{ $tx->type === 'credit' ? '+' : '−' }}{{ config("currency.currencies.{$tx->currency}.symbol", $currencySymbol) }}{{ number_format($tx->amount, 2) }}
                                             </p>
                                             <p class="tx-status">{{ ucfirst($tx->status) }}</p>
                                         </div>

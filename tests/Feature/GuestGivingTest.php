@@ -76,6 +76,8 @@ class GuestGivingTest extends TestCase
         $this->mock(PaystackService::class, function ($m) {
             $m->shouldReceive('initTransaction')->andReturn([
                 'authorization_url' => 'https://checkout.paystack.com/stub',
+                // What the inline checkout resumes from.
+                'access_code'       => 'stub-access-code',
                 'reference'         => 'stub-ref-123',
             ]);
         });

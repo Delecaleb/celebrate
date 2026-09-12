@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CelebrationTemplateSeeder::class,
             FrameSeeder::class,
+            PlatformGiftSeeder::class,
         ]);
 
         // User::factory(10)->create();

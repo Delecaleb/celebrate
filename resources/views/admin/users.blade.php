@@ -49,6 +49,7 @@
                     <th>Events</th>
                     <th>Status</th>
                     <th>Joined</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -74,7 +75,16 @@
                                 <span class="badge badge-gray">User</span>
                             @endif
                         </td>
-                        <td>${{ number_format($u->wallet_balance ?? 0, 2) }}</td>
+                        {{-- USD users have one wallet; everyone else has a local
+                             balance in their own currency plus the USD one. --}}
+                        <td>
+                            @if (strtoupper($u->currency ?? 'USD') === 'USD')
+                                ${{ number_format($u->global_wallet_balance ?? 0, 2) }}
+                            @else
+                                {{ config("currency.currencies.{$u->currency}.symbol", $u->currency) }}{{ number_format($u->wallet_balance ?? 0, 2) }}
+                                <span style="color:var(--muted)">· ${{ number_format($u->global_wallet_balance ?? 0, 2) }}</span>
+                            @endif
+                        </td>
                         <td>
                             @if (($u->celebrations_count ?? 0) > 0)
                                 <strong>{{ $u->celebrations_count }}</strong>
@@ -95,10 +105,25 @@
                         <td style="color:var(--muted);font-size:0.8rem;white-space:nowrap">
                             {{ $u->created_at->format('M j, Y') }}
                         </td>
+                        <td>
+                            {{-- Opens their account in the customer app, exactly
+                                 as they see it. Logged against their account,
+                                 and the money paths stay closed throughout. --}}
+                            @if (auth('admin')->user()->hasPermission('users.impersonate'))
+                                <form method="POST" action="{{ route('admin.users.impersonate', $u) }}"
+                                      onsubmit="return confirm('Open {{ $u->email }}\'s account as them? This is recorded on their activity log.')">
+                                    @csrf
+                                    <button type="submit" class="btn-filter"
+                                            style="padding:0.4rem 0.7rem;font-size:0.78rem;white-space:nowrap">
+                                        <i class="mdi mdi-eye-outline"></i> View as
+                                    </button>
+                                </form>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" style="text-align:center;padding:3rem;color:var(--muted)">
+                        <td colspan="7" style="text-align:center;padding:3rem;color:var(--muted)">
                             <i class="mdi mdi-account-off-outline" style="font-size:1.75rem;display:block;margin-bottom:0.5rem"></i>
                             No users found.
                         </td>

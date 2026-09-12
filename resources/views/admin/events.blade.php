@@ -114,9 +114,16 @@
                             @endphp
                             {{ $d ? \Carbon\Carbon::parse($d)->format('M j, Y') : '—' }}
                         </td>
-                        <td>
+                        <td style="white-space:nowrap">
+                            {{-- The registry, every gift and every contribution
+                                 against this celebration. --}}
+                            <a href="{{ route('admin.events.show', $event) }}" class="tbl-btn view"
+                               title="Open in the panel">
+                                <i class="mdi mdi-file-tree-outline"></i>
+                            </a>
                             <a href="{{ route('celebrations.show', $event->slug) }}"
                                class="tbl-btn view"
+                               title="Open the live page"
                                target="_blank">
                                 <i class="mdi mdi-eye-outline"></i>
                             </a>

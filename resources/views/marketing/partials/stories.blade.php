@@ -1,49 +1,15 @@
-{{-- Stories page --}}
+{{--
+    Stories index.
 
-@php
-/*
-| Illustrative testimonials. Swap for real, permissioned quotes before launch —
-| and replace the Unsplash portraits with the actual people's photos.
-*/
-$stories = [
-    [
-        'quote'  => "We made a page for my mum's 60th and sent it to the family group. By the end of the week she had 200 wishes and enough gifted to send her on the trip she'd been putting off for years. She still opens the photobook.",
-        'name'   => 'Sarah K.',
-        'meta'   => "Planned her mum's 60th birthday",
-        'avatar' => 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&q=80',
-    ],
-    [
-        'quote'  => "Half our guests were abroad and couldn't make the wedding. The page meant they were still part of it — messages, photos, and contributions towards the honeymoon instead of a registry we didn't need.",
-        'name'   => 'Chidi &amp; Amaka',
-        'meta'   => 'Wedding, Lagos',
-        'avatar' => 'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=100&h=100&fit=crop&q=80',
-    ],
-    [
-        'quote'  => "I set it up for my brother's graduation in about a minute on my phone. What got me was the photobook at the end — all of it in one PDF instead of scattered across four group chats.",
-        'name'   => 'Tunde A.',
-        'meta'   => "Brother's graduation",
-        'avatar' => 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&q=80',
-    ],
-    [
-        'quote'  => "Group gifting was the whole point for us. Instead of six people buying six different things for the baby, everyone put in towards the pram. It was funded in two days.",
-        'name'   => 'Ngozi E.',
-        'meta'   => 'Baby shower',
-        'avatar' => 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&q=80',
-    ],
-    [
-        'quote'  => "We used it for my father's memorial. It sounds like an odd fit for something called CelebrateMi, but a quiet page where people could leave tributes was exactly what the family needed.",
-        'name'   => 'Daniel O.',
-        'meta'   => 'Memorial page',
-        'avatar' => 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&q=80',
-    ],
-    [
-        'quote'  => "Money landed in the wallet as gifts came in, and the withdrawal hit my bank the next day. That was the part I was most nervous about and it was the part I thought about least.",
-        'name'   => 'Blessing I.',
-        'meta'   => 'Birthday, Abuja',
-        'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&q=80',
-    ],
-];
-@endphp
+    The cards come from resources/data/stories.json via App\Support\StoryLibrary
+    — illustrative celebrations, not customer records. Each one links to an
+    archived, read-only version of the page it describes.
+
+    Six are shown at a time; the rest are in the markup already and revealed six
+    at a time by the button underneath, so the whole set is still crawlable.
+--}}
+
+@use('App\Support\StoryLibrary')
 
 <section class="page-head">
     <div class="pattern pattern-dots pattern-fade"></div>
@@ -51,8 +17,8 @@ $stories = [
     <div class="wrap sec-inner">
         <h1 class="h-display">Real days.<br><span class="t-accent">Real people.</span></h1>
         <p class="lead">
-            Birthdays, weddings, graduations and a few occasions we didn't plan for. Here's
-            what people did with a page and a link.
+            Birthdays, weddings, graduations and a few occasions we didn't plan for. Open any
+            one of them — every wish and every gift is still exactly where it was left.
         </p>
     </div>
 </section>
@@ -60,22 +26,24 @@ $stories = [
 {{-- ══ STATS ════════════════════════════════════════════════════════ --}}
 <section class="sec sec-tight sec-alt">
     <div class="wrap">
+        {{-- These describe the archive on this page, which is a fact we can
+             check, rather than platform totals we would have to invent. --}}
         <div class="stats-grid">
             <div class="stat">
-                <p class="n">2.4k</p>
-                <p class="l">Celebrations</p>
+                <p class="n">{{ count($stories) }}</p>
+                <p class="l">{{ ($query ?? '') !== '' ? 'Matching this search' : 'Celebrations here' }}</p>
             </div>
             <div class="stat">
-                <p class="n">140k</p>
-                <p class="l">Wishes sent</p>
+                <p class="n">11</p>
+                <p class="l">Kinds of occasion</p>
             </div>
             <div class="stat">
-                <p class="n">&#8358;92m</p>
-                <p class="l">Gifted &amp; withdrawn</p>
+                <p class="n">16</p>
+                <p class="l">Countries</p>
             </div>
             <div class="stat">
-                <p class="n">4.9</p>
-                <p class="l">Average rating</p>
+                <p class="n">&infin;</p>
+                <p class="l">How long they last</p>
             </div>
         </div>
     </div>
@@ -83,24 +51,102 @@ $stories = [
 
 {{-- ══ STORY GRID ═══════════════════════════════════════════════════ --}}
 <section class="sec">
-    <div class="wrap">
-        <div class="grid-3">
-            @foreach ($stories as $story)
-                <div class="quote">
-                    <span class="qmark" aria-hidden="true"><i class="mdi mdi-format-quote-close"></i></span>
+    {{-- A search result is already a short list, so it is shown whole. --}}
+    <div class="wrap" x-data="{ shown: {{ ($query ?? '') !== '' ? count($stories) : 6 }}, total: {{ count($stories) }} }">
 
-                    <blockquote>{{ $story['quote'] }}</blockquote>
+        <div class="section-head">
+            <h2 class="h-section">Thirty-six pages,<br><span class="t-serif t-accent">still open</span>.</h2>
+            <p class="lead">
+                Every one of these is closed to new wishes and gifts now — but nothing has been
+                taken down. That's the point.
+            </p>
+        </div>
 
-                    <div class="quote-author">
-                        <img src="{{ $story['avatar'] }}" alt="" loading="lazy">
-                        <div>
-                            <p class="qa-name">{!! $story['name'] !!}</p>
-                            <p class="qa-meta">{{ $story['meta'] }}</p>
-                        </div>
-                    </div>
-                </div>
+        {{-- A plain GET form: it works without JavaScript, and ?q= is the same
+             address our structured data advertises to search engines. --}}
+        <form method="GET" action="{{ route('stories') }}" class="story-search" role="search">
+            <label class="sr-only" for="story-q">Search the stories</label>
+            <i class="mdi mdi-magnify" aria-hidden="true"></i>
+            <input
+                type="search"
+                id="story-q"
+                name="q"
+                value="{{ $query ?? '' }}"
+                placeholder="Try a name, an occasion or a city — “wedding”, “Lagos”, “memorial”"
+                autocomplete="off"
+            >
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+
+        @if (($query ?? '') !== '')
+            <p class="story-result-note">
+                @if (count($stories) === 0)
+                    Nothing matches <strong>“{{ $query }}”</strong>.
+                @else
+                    <strong>{{ count($stories) }}</strong>
+                    {{ Str::plural('celebration', count($stories)) }} matching
+                    <strong>“{{ $query }}”</strong>.
+                @endif
+                <a href="{{ route('stories') }}" data-nav>Show all thirty-six</a>
+            </p>
+        @endif
+
+        <div class="story-grid">
+            @foreach ($stories as $i => $story)
+                <a
+                    href="{{ route('stories.show', $story['slug']) }}"
+                    data-nav
+                    class="story-card"
+                    @if ($i >= 6) x-show="shown > {{ $i }}" x-cloak x-transition.opacity @endif
+                >
+                    <span class="story-cover">
+                        <img
+                            src="{{ StoryLibrary::photo($story['cover'], 640, 420) }}"
+                            alt=""
+                            loading="lazy"
+                        >
+                        <span class="story-chip">
+                            <i class="mdi {{ $story['icon'] }}"></i> {{ $story['occasion_label'] }}
+                        </span>
+                        <span class="story-locked" title="Closed to new wishes and gifts">
+                            <i class="mdi mdi-lock-outline"></i>
+                        </span>
+                    </span>
+
+                    <span class="story-body">
+                        <span class="story-title">{{ $story['title'] }}</span>
+                        <span class="story-where">
+                            <i class="mdi mdi-map-marker-outline"></i> {{ $story['location'] }}
+                        </span>
+
+                        <span class="story-quote">“{{ $story['pull_quote'] }}”</span>
+
+                        <span class="story-by">
+                            — {{ $story['quote_by'] }}, {{ $story['quote_meta'] }}
+                        </span>
+
+                        <span class="story-stats">
+                            <span><i class="mdi mdi-message-text-outline"></i> {{ number_format($story['wish_count']) }} wishes</span>
+                            <span><i class="mdi mdi-gift-outline"></i> {{ $story['currency'] }}{{ number_format($story['raised']) }}</span>
+                        </span>
+
+                        <span class="story-open">Open the page <i class="mdi mdi-arrow-right"></i></span>
+                    </span>
+                </a>
             @endforeach
         </div>
+
+        <div class="story-more" x-show="shown < total" x-cloak>
+            <button type="button" class="btn btn-secondary btn-lg" @click="shown = Math.min(shown + 6, total)">
+                <i class="mdi mdi-plus"></i>
+                Show 6 more
+                <span class="story-more-left" x-text="'(' + (total - shown) + ' to go)'"></span>
+            </button>
+        </div>
+
+        <p class="story-all" x-show="shown >= total" x-cloak>
+            That's all thirty-six. Yours would sit here just as well.
+        </p>
     </div>
 </section>
 
@@ -110,7 +156,7 @@ $stories = [
 
     <div class="wrap sec-inner">
         <h2 class="h-section">Your turn.</h2>
-        <p>Somebody in your life has something worth marking.</p>
+        <p>Your day is coming, and the people who love you are waiting to be asked.</p>
 
         <button
             type="button"
@@ -118,9 +164,9 @@ $stories = [
             x-on:click="$dispatch('open-modal', 'create-event')"
             class="btn btn-on-dark"
         >
-            <i class="mdi mdi-plus-circle-outline"></i> Create your celebration
+            <i class="mdi mdi-party-popper"></i> Create my page
         </button>
 
-        <p class="cta-note">Free &middot; Live in 60 seconds</p>
+        <p class="cta-note">Free · Live in 30 seconds</p>
     </div>
 </section>

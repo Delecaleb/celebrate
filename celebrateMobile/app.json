@@ -24,6 +24,7 @@
     },
     "android": {
       "package": "com.celebratemi.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#7c3aed",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,17 +33,24 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "celebratemi" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "celebratemi"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -74,7 +82,11 @@
     ],
     "extra": {
       "//": "Override at build time with EXPO_PUBLIC_API_URL. See src/api/config.ts.",
-      "apiUrl": "http://10.0.2.2:8000"
+      "apiUrl": "http://192.168.1.166:8000",
+      "router": {},
+      "eas": {
+        "projectId": "a883b665-15c9-41a3-9510-ab35a238c96c"
+      }
     }
   }
 }

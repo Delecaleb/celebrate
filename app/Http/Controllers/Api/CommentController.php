@@ -23,16 +23,8 @@ use Illuminate\Support\Facades\DB;
  */
 class CommentController extends Controller
 {
-    /** Used when an unauthenticated visitor posts without giving a name. */
-    private const GUEST_NAMES = [
-        'Anonymous Admirer',
-        'Secret Well-Wisher',
-        'Birthday Fan',
-        'Celebration Friend',
-        'Mystery Guest',
-        'Joy Bringer',
-        'Secret Supporter',
-    ];
+    /** Shown when nobody has told us who posted. */
+    private const GUEST_NAME = 'Anonymous';
 
     public function index(Request $request, string $slug)
     {
@@ -75,9 +67,9 @@ class CommentController extends Controller
         }
 
         $name = match (true) {
-            $anonymous  => self::GUEST_NAMES[array_rand(self::GUEST_NAMES)],
+            $anonymous   => self::GUEST_NAME,
             (bool) $user => trim($user->first_name.' '.$user->last_name),
-            default     => $request->guest_name ?: self::GUEST_NAMES[array_rand(self::GUEST_NAMES)],
+            default      => $request->guest_name ?: self::GUEST_NAME,
         };
 
         $comment = Comment::create([

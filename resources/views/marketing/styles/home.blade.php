@@ -214,7 +214,6 @@
     .frow + .frow { margin-top: 6.5rem; }
     /* every other row puts the artwork on the left */
     .frow-flip .frow-art { order: -1; }
-    .frow-copy .eyebrow { margin-bottom: 1.2rem; }
     .frow-copy h2 { font-size: clamp(1.8rem, 3.2vw, 2.5rem); font-weight: 700; }
     .frow-copy .lead { margin-top: 1.1rem; }
 

@@ -19,3 +19,8 @@ Schedule::command('mail:gifting-reports --period=weekly')->weeklyOn(1, '10:00');
 
 // Send monthly gifting reports on the 1st of each month at 10:00 AM
 Schedule::command('mail:gifting-reports --period=monthly')->monthlyOn(1, '10:00');
+
+// Settle payments a callback or webhook never confirmed. Ten minutes is short
+// enough that nobody waits long, and long enough that a slow gateway redirect
+// has already had its chance.
+Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping();

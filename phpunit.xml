@@ -32,5 +32,12 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Dummy gateway keys: the payment services are constructed whenever a
+             controller that injects them is resolved, and Stripe's client
+             rejects a null secret outright. No test ever calls out. -->
+        <env name="STRIPE_SECRET_KEY" value="sk_test_dummy"/>
+        <env name="STRIPE_PUBLISHABLE_KEY" value="pk_test_dummy"/>
+        <env name="PAYSTACK_SECRET_KEY" value="sk_test_dummy"/>
+        <env name="PAYSTACK_PUBLIC_KEY" value="pk_test_dummy"/>
     </php>
 </phpunit>

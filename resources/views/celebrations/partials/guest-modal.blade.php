@@ -66,6 +66,36 @@
                     <p class="text-sm" x-text="submittedMessage"></p>
                 </div>
 
+                {{-- The one moment someone is most inclined to give: they have
+                     just written something warm and the page is still in front
+                     of them. Asked once, here, rather than as a banner they
+                     scroll past. --}}
+                @unless ($isOwner)
+                    @if ($platformGifts->isNotEmpty())
+                        <div class="card mt-4 p-4" style="background: var(--primary-l); border-color: var(--primary)">
+                            <div class="flex items-start gap-3">
+                                <div class="tile" style="background: var(--primary); color: #fff; flex-shrink: 0">
+                                    <i class="mdi mdi-gift-outline"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold">Make it land</p>
+                                    <p class="text-sm t-muted mt-1">
+                                        Your words are on {{ $celebration->celebrant_name }}'s page for good.
+                                        A gift sits right beside them.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button type="button"
+                                    @click="showGuestModal = false; window.location.href = '{{ route('celebrations.show', $celebration->slug) }}?gifts=1'"
+                                    class="btn btn-primary btn-block mt-4">
+                                <i class="mdi mdi-gift-outline"></i>
+                                Send {{ $celebration->celebrant_name }} a gift
+                            </button>
+                        </div>
+                    @endif
+                @endunless
+
                 @guest
                     <div class="mt-5">
                         <p class="text-sm font-bold mb-3">Create a free account to:</p>
@@ -76,8 +106,11 @@
                             <li class="flex items-center gap-2"><i class="mdi mdi-check t-accent"></i> Get celebration reminders</li>
                             <li class="flex items-center gap-2"><i class="mdi mdi-check t-accent"></i> Create your own page</li>
                         </ul>
+                        {{-- Demoted from primary: sending a gift is the primary
+                             action on this screen now, and two pink full-width
+                             buttons would compete rather than rank. --}}
                         <div class="mt-5 space-y-2">
-                            <button @click="tab='register'" class="btn btn-primary btn-block">Create free account</button>
+                            <button @click="tab='register'" class="btn btn-dark btn-block">Create free account</button>
                             <button @click="showGuestModal=false; window.location.reload()" class="btn btn-outline btn-block">Maybe later</button>
                         </div>
                     </div>
