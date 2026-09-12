@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PaymentSystem\CurrencyService;
 use App\Support\StoryLibrary;
 use Illuminate\Http\Request;
 
@@ -129,8 +130,19 @@ class MainController extends Controller
 
     public function pricing(Request $request)
     {
+        // Same resolver the celebration pages use: a signed-in account keeps
+        // the currency it was opened with, and a visitor is placed by IP —
+        // Nigeria to naira, everywhere unmapped to the base currency. The
+        // country lookup behind it is cached for a day per address, so this
+        // costs a public page nothing after the first hit.
+        $currency = app(CurrencyService::class)->forVisitor();
+
         return $this->respond($request, 'pricing', [
             'nav'         => 'pricing',
+            'currency'     => $currency,
+            'currencyName' => config("currency.currencies.{$currency}.name", $currency),
+            'symbol'       => config("currency.currencies.{$currency}.symbol", $currency),
+            'decimals'     => (int) config("currency.currencies.{$currency}.decimals", 2),
             'title'       => 'Pricing — CelebrateMi',
             'description' => 'Free to create a celebration page. You only pay a small fee on the cash gifts you receive.',
         ]);

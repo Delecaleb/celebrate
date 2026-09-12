@@ -9,11 +9,24 @@
 | app/Services/payment_system or config/), so these numbers are NOT wired to
 | anything real. Edit this one array once the commercial model is decided, and
 | move it to config/ or the database if it needs to change without a deploy.
+|
+| Money is written as a NUMBER, not as a string with a currency glyph in it.
+| $symbol, $decimals and $currencyName come from the controller, which places
+| the visitor — Nigeria sees naira, everywhere else sees the base currency —
+| so the figures below are already currency-aware for whatever replaces them.
+| Anything that is not an amount goes in 'display' instead.
 */
+$money = function ($amount) use ($symbol, $decimals) {
+    // Whole figures read better without trailing zeros on a pricing page.
+    $places = fmod((float) $amount, 1) === 0.0 ? 0 : $decimals;
+
+    return $symbol . number_format((float) $amount, $places);
+};
+
 $plans = [
     [
         'name'     => 'Free',
-        'amount'   => '&#8358;0',
+        'amount'   => 0,
         'unit'     => 'to create a page',
         'note'     => 'Everything you need to run one celebration end to end.',
         'featured' => false,
@@ -28,7 +41,7 @@ $plans = [
     ],
     [
         'name'     => 'Gift fee',
-        'amount'   => 'TBC%',
+        'display'  => 'TBC%',
         'unit'     => 'per cash gift received',
         'note'     => 'Deducted automatically before the gift reaches your wallet. Covers the card and transfer charges from Paystack and Stripe.',
         'featured' => true,
@@ -42,7 +55,7 @@ $plans = [
     ],
     [
         'name'     => 'Organisations',
-        'amount'   => 'Custom',
+        'display'  => 'Custom',
         'unit'     => 'talk to us',
         'note'     => 'For teams and communities running celebrations in bulk.',
         'featured' => false,
@@ -81,7 +94,7 @@ $plans = [
 
                     <p class="price-name">{{ $plan['name'] }}</p>
                     <p class="price-amount">
-                        {!! $plan['amount'] !!}
+                        {{ $plan['display'] ?? $money($plan['amount']) }}
                         <small>{{ $plan['unit'] }}</small>
                     </p>
                     <p class="price-note">{{ $plan['note'] }}</p>
@@ -109,6 +122,8 @@ $plans = [
                 </div>
             @endforeach
         </div>
+
+        
     </div>
 </section>
 

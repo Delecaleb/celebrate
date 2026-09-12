@@ -338,6 +338,14 @@
     .quote-lg .quote-author { justify-content: center; }
     .quote-lg .qmark { font-size: 2.6rem; }
 
+    .price-currency {
+        display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+        flex-wrap: wrap; text-align: center;
+        margin-top: 1.75rem;
+        font-size: 0.84rem; color: var(--muted);
+    }
+    .price-currency i { color: var(--primary); font-size: 1.05rem; line-height: 1; }
+
     /* ══ CHECK LISTS ═══════════════════════════════════════════════════ */
     .checks { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; margin-top: 1.75rem; }
     .checks li { display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.97rem; line-height: 1.6; color: var(--muted); }
