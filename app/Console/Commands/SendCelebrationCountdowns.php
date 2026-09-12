@@ -28,8 +28,12 @@ class SendCelebrationCountdowns extends Command
             foreach ($celebrations as $celebration) {
                 $owner = $celebration->user;
 
-                Mail::to($owner->email)->queue(
-                    new CelebrationCountdownMail($celebration, $days)
+                Outbox::queue(
+                    new CelebrationCountdownMail($celebration, $days),
+                    $owner->email,
+                    'celebration.countdown',
+                    ['celebration_id' => $celebration->id, 'days' => $days],
+                    $owner->first_name,
                 );
 
                 $sent++;

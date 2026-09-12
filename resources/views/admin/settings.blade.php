@@ -21,6 +21,34 @@
         <div class="alert alert-error"><i class="mdi mdi-alert"></i> {{ session('error') }}</div>
     @endif
 
+    {{-- Testing the credentials proves the mailbox works. It does not prove
+         mail works: everything the site actually sends is queued, so with no
+         worker running the Test button reports success while every receipt
+         sits in the jobs table untouched. --}}
+    @if ($queue && ! $queue['healthy'])
+        <div class="alert alert-error" style="align-items:flex-start">
+            <i class="mdi mdi-timer-sand-empty"></i>
+            <div>
+                <strong>{{ $queue['stale'] }} {{ Str::plural('email', $queue['stale']) }} queued and not sending.</strong>
+                Gift receipts and celebration alerts are queued, so they only go out while a worker is
+                running. The oldest has been waiting
+                {{ \Carbon\Carbon::createFromTimestamp($queue['oldest'])->diffForHumans(null, true) }}.
+                <br>
+                Start one on the server with <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan queue:work --tries=3</code>
+                and keep it alive with supervisor — see DEPLOY.md.
+                @if ($queue['failed'] > 0)
+                    <br>{{ $queue['failed'] }} {{ Str::plural('job', $queue['failed']) }} also failed outright:
+                    <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan queue:failed</code>
+                @endif
+            </div>
+        </div>
+    @elseif ($queue && $queue['driver'] === 'database' && $queue['pending'] > 0)
+        <div class="alert alert-success">
+            <i class="mdi mdi-check-circle"></i>
+            A worker is keeping up — {{ $queue['pending'] }} {{ Str::plural('email', $queue['pending']) }} in flight.
+        </div>
+    @endif
+
     {{-- Values set here are encrypted, override .env, and take effect on the
          next request — no deploy, no config:cache. --}}
     <div class="filters-bar" style="margin-bottom:1.5rem">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\GiftReceivedMail;
 use App\Mail\GiftSentMail;
+use App\Support\Outbox;
 use App\Models\Gift;
 use App\Models\PlatformAvailableGift;
 use App\Services\PaymentSystem\CurrencyService;
@@ -244,23 +245,32 @@ class GiftController extends Controller
 
         $gifts->each->load('platformGift');
 
+        $meta = [
+            'celebration_id' => $celebration?->id,
+            'reference'      => $reference,
+            'gift_ids'       => $gifts->pluck('id')->all(),
+        ];
+
         if ($celebration?->user?->email) {
-            Mail::to($celebration->user->email)->queue(
-                new GiftReceivedMail($gifts, $celebration)
+            Outbox::queue(
+                new GiftReceivedMail($gifts, $celebration),
+                $celebration->user->email,
+                'gift.received',
+                $meta,
+                $celebration->user->first_name,
             );
         }
 
         // A wallet gift is still a gift: the sender gets the same receipt as
         // someone who paid by card.
-        if ($celebration && filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
-            try {
-                Mail::to($user->email)->queue(new GiftSentMail($gifts, $celebration));
-            } catch (\Throwable $e) {
-                Log::warning('Gift receipt could not be queued', [
-                    'reference' => $reference,
-                    'error'     => $e->getMessage(),
-                ]);
-            }
+        if ($celebration) {
+            Outbox::queue(
+                new GiftSentMail($gifts, $celebration),
+                (string) $user->email,
+                'gift.sent',
+                $meta,
+                $user->first_name,
+            );
         }
 
         return response()->json([

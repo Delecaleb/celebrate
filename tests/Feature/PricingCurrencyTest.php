@@ -26,29 +26,39 @@ class PricingCurrencyTest extends TestCase
         return ['REMOTE_ADDR' => $ip];
     }
 
+    /** The figure on the first plan card, which is the page's only real price. */
+    private function amountShown(string $html): string
+    {
+        preg_match('/class="price-amount">\s*([^\s<]+)/', $html, $m);
+
+        return $m[1] ?? '';
+    }
+
     public function test_a_nigerian_visitor_sees_naira(): void
     {
-        $this->get('/pricing', $this->visitingFrom('197.210.70.1', 'nigeria'))
+        $html = $this->get('/pricing', $this->visitingFrom('197.210.70.1', 'nigeria'))
             ->assertOk()
-            ->assertSee('Nigerian Naira')
-            ->assertSee('₦0', false)
-            ->assertDontSee('US Dollar');
+            ->getContent();
+
+        $this->assertSame('₦0', $this->amountShown($html));
     }
 
     public function test_a_visitor_from_abroad_sees_the_base_currency(): void
     {
-        $this->get('/pricing', $this->visitingFrom('8.8.8.8', 'united states'))
+        $html = $this->get('/pricing', $this->visitingFrom('8.8.8.8', 'united states'))
             ->assertOk()
-            ->assertSee('US Dollar')
-            ->assertSee('$0', false)
-            ->assertDontSee('Nigerian Naira');
+            ->getContent();
+
+        $this->assertSame('$0', $this->amountShown($html));
     }
 
     public function test_an_unrecognised_country_falls_back_rather_than_breaking(): void
     {
-        $this->get('/pricing', $this->visitingFrom('81.2.69.142', 'united kingdom'))
+        $html = $this->get('/pricing', $this->visitingFrom('81.2.69.142', 'united kingdom'))
             ->assertOk()
-            ->assertSee('US Dollar');
+            ->getContent();
+
+        $this->assertSame('$0', $this->amountShown($html));
     }
 
     public function test_a_signed_in_account_keeps_its_own_currency_abroad(): void
@@ -58,10 +68,12 @@ class PricingCurrencyTest extends TestCase
         $user = User::factory()->create();
         $user->forceFill(['currency' => 'NGN'])->save();
 
-        $this->actingAs($user)
+        $html = $this->actingAs($user)
             ->get('/pricing', $this->visitingFrom('8.8.8.8', 'united states'))
             ->assertOk()
-            ->assertSee('Nigerian Naira');
+            ->getContent();
+
+        $this->assertSame('₦0', $this->amountShown($html));
     }
 
     public function test_the_page_carries_no_hardcoded_currency_glyph(): void

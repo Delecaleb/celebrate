@@ -4,6 +4,7 @@ namespace App\Services\PaymentSystem;
 
 use App\Mail\GiftReceivedMail;
 use App\Mail\GiftSentMail;
+use App\Support\Outbox;
 use App\Models\Gift;
 use App\Models\WalletTransaction;
 use App\Models\WishContribution;
@@ -110,8 +111,16 @@ class PaymentFulfilmentService
 
             // One mail for the basket, not one per line.
             if ($celebration?->user?->email) {
-                Mail::to($celebration->user->email)->queue(
-                    new GiftReceivedMail($gifts, $celebration)
+                Outbox::queue(
+                    new GiftReceivedMail($gifts, $celebration),
+                    $celebration->user->email,
+                    'gift.received',
+                    [
+                        'celebration_id' => $celebration->id,
+                        'reference'      => $reference,
+                        'gift_ids'       => $gifts->pluck('id')->all(),
+                    ],
+                    $celebration->user->first_name,
                 );
             }
 
@@ -119,15 +128,20 @@ class PaymentFulfilmentService
             // is the only record they keep of the payment. A bad address must
             // not take the fulfilment down with it — the money has already
             // moved by this point.
-            if ($celebration && filter_var($first->sender_email, FILTER_VALIDATE_EMAIL)) {
-                try {
-                    Mail::to($first->sender_email)->queue(new GiftSentMail($gifts, $celebration));
-                } catch (\Throwable $e) {
-                    Log::warning('Gift receipt could not be queued', [
-                        'reference' => $reference,
-                        'error'     => $e->getMessage(),
-                    ]);
-                }
+            if ($celebration) {
+                // Outbox never throws and skips an unusable address itself, so
+                // the money having already moved is not at risk here.
+                Outbox::queue(
+                    new GiftSentMail($gifts, $celebration),
+                    (string) $first->sender_email,
+                    'gift.sent',
+                    [
+                        'celebration_id' => $celebration->id,
+                        'reference'      => $reference,
+                        'gift_ids'       => $gifts->pluck('id')->all(),
+                    ],
+                    $first->sender_name,
+                );
             }
 
             Log::info('Gift fulfilled', [

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
+use App\Support\QueueHealth;
 use App\Support\SettingsRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 /**
  * Gateway keys, mail credentials and the location token.
@@ -47,6 +49,9 @@ class AdminSettingsController extends Controller
             'group'  => $group,
             'groups' => array_keys(SettingsRepository::CATALOGUE),
             'fields' => $fields,
+            // Credentials being right is only half of mail working; the other
+            // half is something draining the queue.
+            'queue'  => $group === 'mail' ? QueueHealth::check() : null,
         ]);
     }
 
@@ -199,7 +204,18 @@ class AdminSettingsController extends Controller
                 fn ($message) => $message->to($to)->subject('CelebrateMi test email')
             );
 
-            return ['ok' => true, 'message' => "Test email sent to {$to}. If it does not arrive, check SPF and DKIM on the from-domain."];
+            $queue   = QueueHealth::check();
+            $message = "Test email sent to {$to}. If it does not arrive, check SPF and DKIM on the from-domain.";
+
+            // This test sends inside the request. Everything the site actually
+            // sends is queued, so a passing test with a stalled queue is the
+            // most misleading result this button can give.
+            if (! $queue['healthy']) {
+                $message .= " Note that {$queue['stale']} real " . Str::plural('email', $queue['stale'])
+                    . ' are queued and not going out — start a worker (php artisan queue:work).';
+            }
+
+            return ['ok' => true, 'message' => $message];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not send: ' . $e->getMessage()];
         }

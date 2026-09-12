@@ -29,14 +29,18 @@ class SendCelebrationReminders extends Command
                 $owner = $celebration->user;
 
                 // Notify the celebration owner
-                Mail::to($owner->email)->queue(
+                Outbox::queue(
                     new CelebrationReminderMail(
                         celebration:   $celebration,
                         recipientName: $owner->first_name,
                         recipientEmail: $owner->email,
                         daysUntil:     $days,
                         isOwner:       true,
-                    )
+                    ),
+                    $owner->email,
+                    'celebration.reminder',
+                    ['celebration_id' => $celebration->id, 'days' => $days, 'owner' => true],
+                    $owner->first_name,
                 );
                 $sent++;
 
@@ -46,14 +50,18 @@ class SendCelebrationReminders extends Command
                         continue;
                     }
 
-                    Mail::to($guest->guest_email)->queue(
+                    Outbox::queue(
                         new CelebrationReminderMail(
                             celebration:    $celebration,
                             recipientName:  $guest->guest_name ?? 'Guest',
                             recipientEmail: $guest->guest_email,
                             daysUntil:      $days,
                             isOwner:        false,
-                        )
+                        ),
+                        $guest->guest_email,
+                        'celebration.reminder',
+                        ['celebration_id' => $celebration->id, 'days' => $days, 'owner' => false],
+                        $guest->guest_name ?? 'Guest',
                     );
                     $sent++;
                 }
