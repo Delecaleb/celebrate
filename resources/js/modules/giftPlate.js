@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *  - Grid view: browse available platform gifts
- *  - Detail view: show selected gift, wallet balance, send / pay actions
+ *  - Detail view: the basket, wallet balance, send / pay actions
  *  - External trigger: responds to the 'open-gift-detail' window event
  *    so sidebar buttons outside the component can open it directly on a gift
  */
@@ -16,15 +16,15 @@ export function giftPlate(config) {
         // ── state ──────────────────────────────────────────────────────────
 
         view:            'grid',   // 'grid' | 'detail'
-        selected:        null,
 
         /**
-         * How many of the selected gift. Tapping a tile on the grid bumps this;
-         * tapping a different gift starts the count again, because a send
-         * carries one kind of gift, not a basket.
+         * The basket: one entry per gift, in the order they were first tapped.
+         * Tapping a tile adds one of that gift, so several different gifts can
+         * go together in a single payment.
          */
-        quantity:        1,
+        cart:            [],
         maxQuantity:     99,
+        maxLines:        20,
         loading:         false,
         error:           '',
         success:         '',
@@ -50,33 +50,65 @@ export function giftPlate(config) {
         /**
          * Tap a gift on the grid.
          *
-         * The first tap picks it; tapping the same one again adds another. The
-         * grid stays put so the count can be built up by tapping, which is the
-         * whole point — leaving for the detail panel on the first tap would
-         * make a second one impossible.
+         * Tapping adds one; tapping the same gift again adds another. The grid
+         * stays put so a basket can be built by tapping, which is the whole
+         * point — leaving for the detail panel on the first tap would make a
+         * second one impossible.
          */
         tapGift(gift) {
-            if (this.selected?.id === gift.id) {
-                this.bump(1);
+            const line = this.lineFor(gift.id);
+
+            if (line) {
+                this.bump(gift.id, 1);
 
                 return;
             }
 
-            this.selected    = gift;
-            this.quantity    = 1;
-            this.error       = '';
-            this.success     = '';
-            this.giftMessage = '';
+            if (this.cart.length >= this.maxLines) {
+                this.error = `You can send up to ${this.maxLines} different gifts at once.`;
+
+                return;
+            }
+
+            this.cart.push({ gift, quantity: 1 });
+            this.error = '';
         },
 
-        /** Move the count, staying between one and the cap. */
-        bump(by) {
-            this.quantity = Math.max(1, Math.min(this.maxQuantity, this.quantity + by));
+        lineFor(id) {
+            return this.cart.find((line) => line.gift.id === id);
         },
 
-        /** Open the detail panel for whatever is selected. */
+        /** Move one gift's count, dropping the line when it reaches zero. */
+        bump(id, by) {
+            const line = this.lineFor(id);
+
+            if (! line) {
+                return;
+            }
+
+            const next = line.quantity + by;
+
+            if (next < 1) {
+                this.removeLine(id);
+
+                return;
+            }
+
+            line.quantity = Math.min(this.maxQuantity, next);
+            this.error    = '';
+        },
+
+        removeLine(id) {
+            this.cart = this.cart.filter((line) => line.gift.id !== id);
+
+            if (this.cart.length === 0) {
+                this.view = 'grid';
+            }
+        },
+
+        /** Open the detail panel once there is something to pay for. */
         review() {
-            if (! this.selected) {
+            if (! this.cart.length) {
                 return;
             }
 
@@ -84,21 +116,21 @@ export function giftPlate(config) {
             this.error = '';
         },
 
-        /** Clear the selection and start again. */
+        /** Empty the basket and start again. */
         clearPick() {
-            this.selected = null;
-            this.quantity = 1;
+            this.cart  = [];
+            this.view  = 'grid';
+            this.error = '';
         },
 
-        /** How many of a given gift are currently picked, for the tile badge. */
+        /** How many of a given gift are in the basket, for the tile badge. */
         pickedCount(id) {
-            return this.selected?.id === id ? this.quantity : 0;
+            return this.lineFor(id)?.quantity ?? 0;
         },
 
-        /** Select a gift and navigate straight to the detail panel. */
+        /** Open straight onto one gift — used by the buttons outside the modal. */
         selectGift(gift) {
-            this.selected    = gift;
-            this.quantity    = 1;
+            this.cart        = [{ gift, quantity: 1 }];
             this.view        = 'detail';
             this.error       = '';
             this.success     = '';
@@ -130,19 +162,45 @@ export function giftPlate(config) {
 
         // ── helpers ────────────────────────────────────────────────────────
 
-        /** What is actually being charged: unit price times how many. */
-        get lineTotal() {
-            return this.selected ? this.selected.price * this.quantity : 0;
+        /** What is actually being charged for the whole basket. */
+        get cartTotal() {
+            return this.cart.reduce((sum, line) => sum + line.gift.price * line.quantity, 0);
         },
 
         /** The total, formatted, for every place that shows a price. */
-        get lineTotalLabel() {
-            return this.visitorSymbol + this.formatNum(this.lineTotal);
+        get cartTotalLabel() {
+            return this.visitorSymbol + this.formatNum(this.cartTotal);
         },
 
-        /** True when the wallet balance covers the whole line, not one unit. */
+        /** Gifts, counting quantity — "3 gifts" means three things, not three lines. */
+        get cartCount() {
+            return this.cart.reduce((sum, line) => sum + line.quantity, 0);
+        },
+
+        /** How the basket is described in one phrase. */
+        get cartLabel() {
+            if (this.cart.length === 1) {
+                const line = this.cart[0];
+
+                return line.quantity > 1
+                    ? `${line.quantity} × ${line.gift.name}`
+                    : line.gift.name;
+            }
+
+            return `${this.cartCount} gifts`;
+        },
+
+        /** What goes on the wire: gifts and counts, never prices. */
+        get cartItems() {
+            return this.cart.map((line) => ({
+                platform_gift_id: line.gift.id,
+                quantity:         line.quantity,
+            }));
+        },
+
+        /** True when the wallet balance covers the whole basket. */
         hasSufficientBalance() {
-            return this.selected && this.walletBalance >= this.lineTotal;
+            return this.cart.length > 0 && this.walletBalance >= this.cartTotal;
         },
 
         /** Format a number with 2 decimal places and locale thousand separators. */
@@ -163,10 +221,9 @@ export function giftPlate(config) {
 
             try {
                 const { res, data, token } = await postJson(this.sendUrl, {
-                    platform_gift_id: this.selected.id,
-                    celebration_id:   this.celebrationId,
-                    message:          this.giftMessage,
-                    quantity:         this.quantity,
+                    items:          this.cartItems,
+                    celebration_id: this.celebrationId,
+                    message:        this.giftMessage,
                 }, this.csrfToken);
 
                 // postJson may have had to go and get a live one.
@@ -194,7 +251,7 @@ export function giftPlate(config) {
                 && /^\S+@\S+\.\S+$/.test(this.guestEmail.trim());
         },
 
-        /** Initialise a Paystack payment for the selected gift. */
+        /** Initialise a Paystack payment for the basket. */
         async initiatePayment() {
             if (!this.isAuthenticated && !this.canGuestPay) {
                 this.error = 'Please add your name and email.';
@@ -207,12 +264,11 @@ export function giftPlate(config) {
 
             try {
                 const { res, data, token } = await postJson(this.payUrl, {
-                    platform_gift_id: this.selected.id,
-                    celebration_id:   this.celebrationId,
-                    message:          this.giftMessage,
-                    quantity:         this.quantity,
-                    guest_name:       this.isAuthenticated ? null : this.guestName.trim(),
-                    guest_email:      this.isAuthenticated ? null : this.guestEmail.trim(),
+                    items:          this.cartItems,
+                    celebration_id: this.celebrationId,
+                    message:        this.giftMessage,
+                    guest_name:     this.isAuthenticated ? null : this.guestName.trim(),
+                    guest_email:    this.isAuthenticated ? null : this.guestEmail.trim(),
                 }, this.csrfToken);
 
                 this.csrfToken = token;

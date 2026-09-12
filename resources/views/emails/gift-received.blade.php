@@ -4,7 +4,11 @@
         A gift just landed, {{ $ownerFirstName }}! 🎁
     </p>
     <p style="margin: 0 0 28px 0; font-size: 15px; color: #6B7280; line-height: 1.6;">
-        Someone sent you a gift for <strong>{{ $celebration->title }}</strong>. Here are the details:
+        @if (count($lines) > 1)
+            Someone sent you {{ count($lines) }} gifts for <strong>{{ $celebration->title }}</strong>, all in one go:
+        @else
+            Someone sent you a gift for <strong>{{ $celebration->title }}</strong>. Here are the details:
+        @endif
     </p>
 
     {{-- Gift card --}}
@@ -13,26 +17,29 @@
         <tr>
             <td>
                 <p style="margin: 0 0 4px 0; font-size: 28px; text-align: center;">🎁</p>
-                <p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #7C3AED; text-align: center;">
-                    {{ $gift->label() }}
-                </p>
+
+                {{-- One row per gift. A single gift still reads as one line,
+                     so nothing changes for the common case. --}}
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom: 14px;">
+                    @foreach ($lines as $line)
+                        <tr>
+                            <td style="padding: 5px 0; font-size: 15px; font-weight: 700; color: #7C3AED;">{{ $line['label'] }}</td>
+                            <td style="padding: 5px 0; font-size: 14px; font-weight: 700; color: #111827; text-align: right; white-space: nowrap;">{{ $line['amount'] }}</td>
+                        </tr>
+                    @endforeach
+                    @if (count($lines) > 1)
+                        <tr>
+                            <td style="padding: 9px 0 0; border-top: 1px solid #DDD6FE; font-size: 13px; color: #6B7280;">Total</td>
+                            <td style="padding: 9px 0 0; border-top: 1px solid #DDD6FE; font-size: 15px; font-weight: 800; color: #7C3AED; text-align: right; white-space: nowrap;">{{ $basketTotal }}</td>
+                        </tr>
+                    @endif
+                </table>
 
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
                         <td style="padding: 6px 0; font-size: 13px; color: #6B7280; width: 110px;">From</td>
                         <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #111827;">
                             {{ $gift->is_anonymous ? 'Anonymous' : $gift->sender_name }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Amount</td>
-                        <td style="padding: 6px 0; font-size: 13px; font-weight: 700; color: #7C3AED;">
-                            {{-- The currency it was actually taken in. A naira
-                                 gift used to arrive here labelled as dollars. --}}
-                            @php
-                                $giftCurrency = strtoupper($gift->currency ?: config('currency.base'));
-                            @endphp
-                            {{ config("currency.currencies.{$giftCurrency}.symbol", '') }}{{ number_format($gift->amount, (int) config("currency.currencies.{$giftCurrency}.decimals", 2)) }} {{ $giftCurrency }}
                         </td>
                     </tr>
                     <tr>

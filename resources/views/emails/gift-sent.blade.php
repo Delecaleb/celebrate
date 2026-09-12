@@ -4,8 +4,13 @@
         Thank you{{ $senderFirstName ? ', ' . $senderFirstName : '' }} 🎁
     </p>
     <p style="margin: 0 0 28px 0; font-size: 15px; color: #6B7280; line-height: 1.6;">
-        Your gift to <strong>{{ $celebration->celebrant_name }}</strong> came through, and it is now on
-        their celebration page for good. Here is your receipt.
+        @if (count($lines) > 1)
+            Your gifts to <strong>{{ $celebration->celebrant_name }}</strong> came through, and they are now
+            on their celebration page for good. Here is your receipt.
+        @else
+            Your gift to <strong>{{ $celebration->celebrant_name }}</strong> came through, and it is now on
+            their celebration page for good. Here is your receipt.
+        @endif
     </p>
 
     {{-- Receipt --}}
@@ -14,9 +19,15 @@
         <tr>
             <td>
                 <p style="margin: 0 0 4px 0; font-size: 28px; text-align: center;">🎁</p>
-                <p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #7C3AED; text-align: center;">
-                    {{ $gift->label() }}
-                </p>
+
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom: 14px;">
+                    @foreach ($lines as $line)
+                        <tr>
+                            <td style="padding: 5px 0; font-size: 15px; font-weight: 700; color: #7C3AED;">{{ $line['label'] }}</td>
+                            <td style="padding: 5px 0; font-size: 14px; font-weight: 700; color: #111827; text-align: right; white-space: nowrap;">{{ $line['amount'] }}</td>
+                        </tr>
+                    @endforeach
+                </table>
 
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
@@ -26,7 +37,7 @@
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Amount</td>
+                        <td style="padding: 6px 0; font-size: 13px; color: #6B7280;">Total paid</td>
                         <td style="padding: 6px 0; font-size: 13px; font-weight: 700; color: #7C3AED;">
                             {{ $amount }}
                         </td>

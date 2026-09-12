@@ -52,7 +52,7 @@
                         })"
                         {{-- The border carries the picked state, so the tile
                              that is being counted up is obvious while tapping. --}}
-                        :class="selected?.id === {{ $gift->id }}
+                        :class="pickedCount({{ $gift->id }}) > 0
                             ? 'border-rose-400 ring-2 ring-rose-200'
                             : 'border-gray-100 hover:border-rose-300'"
                         class="relative rounded-2xl border bg-white flex flex-col items-center justify-center p-2.5 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
@@ -88,25 +88,26 @@
 
             {{-- Outside the scrolling grid, so the running total stays in view
                  while tapping. --}}
-            <div x-show="selected" x-cloak x-transition
-                 class="sticky bottom-0 flex items-center gap-3 border-t border-gray-100 bg-white px-5 py-3">
-                <div class="min-w-0 flex-1">
-                    <p class="text-sm font-bold text-gray-900 truncate">
-                        <span x-text="quantity"></span> ×
-                        <span x-text="selected?.name"></span>
-                    </p>
-                    <button type="button" @click="clearPick()"
-                            class="text-xs text-gray-400 hover:text-gray-700 underline">
-                        Clear
+            <div x-show="cart.length" x-cloak x-transition
+                 class="sticky bottom-0 border-t border-gray-100 bg-white px-5 py-3">
+                <p x-show="error" x-cloak class="mb-2 text-xs font-semibold text-red-600" x-text="error"></p>
+
+                <div class="flex items-center gap-3">
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-bold text-gray-900" x-text="cartLabel"></p>
+                        <button type="button" @click="clearPick()"
+                                class="text-xs text-gray-400 underline hover:text-gray-700">
+                            Clear
+                        </button>
+                    </div>
+
+                    <p class="shrink-0 text-lg font-black text-rose-500" x-text="cartTotalLabel"></p>
+
+                    <button type="button" @click="review()"
+                            class="shrink-0 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800">
+                        Continue
                     </button>
                 </div>
-
-                <p class="shrink-0 text-lg font-black text-rose-500" x-text="lineTotalLabel"></p>
-
-                <button type="button" @click="review()"
-                        class="shrink-0 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800">
-                    Continue
-                </button>
             </div>
 
         </div>
@@ -123,56 +124,57 @@
                 <i class="mdi mdi-arrow-left text-base"></i> Back to gifts
             </button>
 
-            {{-- Gift card --}}
-            <div class="flex gap-4 items-center bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                {{-- optional chaining: this panel is x-show, so Alpine
-                     evaluates these while `selected` is still null --}}
-                <template x-if="selected?.image">
-                    <img
-                        :src="selected?.image"
-                        :alt="selected?.name"
-                        class="rounded-xl object-cover border border-gray-100 shrink-0"
-                        style="width:4.5rem;height:4.5rem"
-                    >
+            {{-- One row per gift in the basket, each adjustable here so nobody
+                 has to go back to the grid to change their mind. --}}
+            <div class="divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-white">
+                <template x-for="line in cart" :key="line.gift.id">
+                    <div class="flex items-center gap-3 p-3">
+                        <template x-if="line.gift.image">
+                            <img :src="line.gift.image" :alt="line.gift.name"
+                                 class="shrink-0 rounded-xl border border-gray-100 object-contain p-1"
+                                 style="width:3rem;height:3rem">
+                        </template>
+
+                        <template x-if="!line.gift.image">
+                            <span class="flex shrink-0 items-center justify-center rounded-xl"
+                                  style="width:3rem;height:3rem"
+                                  :style="`background:${line.gift.accent}18;color:${line.gift.accent}`">
+                                <i class="mdi" :class="line.gift.icon" style="font-size:1.5rem"></i>
+                            </span>
+                        </template>
+
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-bold text-gray-900" x-text="line.gift.name"></p>
+                            <p class="text-xs text-gray-500"
+                               x-text="visitorSymbol + formatNum(line.gift.price) + ' each'"></p>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-1.5">
+                            <button type="button" @click="bump(line.gift.id, -1)"
+                                    :aria-label="`One fewer ${line.gift.name}`"
+                                    class="h-8 w-8 rounded-full border border-gray-200 text-base font-bold text-gray-700 hover:border-gray-900">
+                                &minus;
+                            </button>
+
+                            <span class="w-7 text-center text-sm font-black text-gray-900"
+                                  aria-live="polite" x-text="line.quantity"></span>
+
+                            <button type="button" @click="bump(line.gift.id, 1)"
+                                    :disabled="line.quantity >= maxQuantity"
+                                    :aria-label="`One more ${line.gift.name}`"
+                                    class="h-8 w-8 rounded-full border border-gray-200 text-base font-bold text-gray-700 disabled:opacity-35 disabled:cursor-not-allowed hover:border-gray-900">
+                                +
+                            </button>
+                        </div>
+
+                        <p class="w-20 shrink-0 text-right text-sm font-black text-gray-900"
+                           x-text="visitorSymbol + formatNum(line.gift.price * line.quantity)"></p>
+                    </div>
                 </template>
 
-                <template x-if="!selected?.image">
-                    <span class="rounded-xl flex items-center justify-center shrink-0"
-                          style="width:4.5rem;height:4.5rem"
-                          :style="`background:${selected?.accent}18;color:${selected?.accent}`">
-                        <i class="mdi" :class="selected?.icon" style="font-size:2.1rem"></i>
-                    </span>
-                </template>
-
-                <div class="min-w-0">
-                    <h3 class="font-bold text-base text-gray-900" x-text="selected?.name"></h3>
-                    <p class="text-2xl font-black text-rose-500 mt-1" x-text="lineTotalLabel"></p>
-                    {{-- Only worth saying once there is more than one. --}}
-                    <p class="text-xs text-gray-500" x-show="quantity > 1" x-cloak
-                       x-text="selected ? visitorSymbol + formatNum(selected.price) + ' each' : ''"></p>
-                    <p class="text-xs text-gray-500 mt-1" x-text="selected?.note"></p>
-                </div>
-            </div>
-
-            {{-- Same count as the grid, adjustable without going back. --}}
-            <div class="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white px-4 py-3">
-                <span class="text-sm font-semibold text-gray-700">How many?</span>
-
-                <div class="flex items-center gap-2">
-                    <button type="button" @click="bump(-1)" :disabled="quantity <= 1"
-                            aria-label="One fewer"
-                            class="h-9 w-9 rounded-full border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-35 disabled:cursor-not-allowed hover:border-gray-900">
-                        &minus;
-                    </button>
-
-                    <span class="w-9 text-center text-base font-black text-gray-900"
-                          aria-live="polite" x-text="quantity"></span>
-
-                    <button type="button" @click="bump(1)" :disabled="quantity >= maxQuantity"
-                            aria-label="One more"
-                            class="h-9 w-9 rounded-full border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-35 disabled:cursor-not-allowed hover:border-gray-900">
-                        +
-                    </button>
+                <div class="flex items-center justify-between px-3 py-3">
+                    <span class="text-sm font-semibold text-gray-700">Total</span>
+                    <span class="text-2xl font-black text-rose-500" x-text="cartTotalLabel"></span>
                 </div>
             </div>
 

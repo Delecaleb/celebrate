@@ -15,7 +15,7 @@
 /node_modules
 /public/build
 /public/hot
-/vendor
+vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db

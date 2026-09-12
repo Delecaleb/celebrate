@@ -55,26 +55,39 @@ class PaymentFulfilmentService
     public function fulfilGift(string $reference): string
     {
         $outcome = DB::transaction(function () use ($reference) {
-            $gift = Gift::where('transaction_reference', $reference)->lockForUpdate()->first();
+            // A reference can carry several gifts: one payment, one basket.
+            // They settle together or not at all.
+            $gifts = Gift::where('transaction_reference', $reference)
+                ->lockForUpdate()
+                ->get();
 
-            if (! $gift) {
+            if ($gifts->isEmpty()) {
                 return [self::MISSING, null];
             }
 
-            if ($gift->payment_status === 'paid') {
+            $unpaid = $gifts->where('payment_status', '!=', 'paid');
+
+            if ($unpaid->isEmpty()) {
                 return [self::ALREADY, null];
             }
 
-            $gift->update(['payment_status' => 'paid']);
+            $celebration = $unpaid->first()->celebration()->with('user')->first();
 
-            $celebration = $gift->celebration()->with('user')->first();
+            foreach ($unpaid as $gift) {
+                $gift->update(['payment_status' => 'paid']);
 
-            if ($celebration?->user) {
+                if (! $celebration?->user) {
+                    continue;
+                }
+
                 $this->wallet->credit(
                     user:             $celebration->user,
                     amount:           (float) $gift->amount,
                     description:      'Gift received: ' . $gift->label(),
-                    reference:        $gift->transaction_reference,
+                    // One credit per gift keeps the ledger itemised, and
+                    // wallet_transactions.reference is unique, so each needs
+                    // its own.
+                    reference:        $reference . '-in-' . $gift->id,
                     source:           $gift,
                     originalAmount:   (float) $gift->amount,
                     originalCurrency: $gift->currency,
@@ -82,21 +95,23 @@ class PaymentFulfilmentService
                 );
             }
 
-            return [self::DONE, $gift];
+            return [self::DONE, $unpaid->values()];
         });
 
-        [$status, $gift] = $outcome;
+        [$status, $gifts] = $outcome;
 
         // Mail goes out after the commit — a queued job must never be able to
         // read a row the transaction has not written yet.
-        if ($status === self::DONE && $gift) {
-            $celebration = $gift->celebration()->with('user')->first();
+        if ($status === self::DONE && $gifts && $gifts->isNotEmpty()) {
+            $first       = $gifts->first();
+            $celebration = $first->celebration()->with('user')->first();
 
-            $gift->load('platformGift');
+            $gifts->each->load('platformGift');
 
+            // One mail for the basket, not one per line.
             if ($celebration?->user?->email) {
                 Mail::to($celebration->user->email)->queue(
-                    new GiftReceivedMail($gift, $celebration)
+                    new GiftReceivedMail($gifts, $celebration)
                 );
             }
 
@@ -104,9 +119,9 @@ class PaymentFulfilmentService
             // is the only record they keep of the payment. A bad address must
             // not take the fulfilment down with it — the money has already
             // moved by this point.
-            if ($celebration && filter_var($gift->sender_email, FILTER_VALIDATE_EMAIL)) {
+            if ($celebration && filter_var($first->sender_email, FILTER_VALIDATE_EMAIL)) {
                 try {
-                    Mail::to($gift->sender_email)->queue(new GiftSentMail($gift, $celebration));
+                    Mail::to($first->sender_email)->queue(new GiftSentMail($gifts, $celebration));
                 } catch (\Throwable $e) {
                     Log::warning('Gift receipt could not be queued', [
                         'reference' => $reference,
@@ -115,7 +130,10 @@ class PaymentFulfilmentService
                 }
             }
 
-            Log::info('Gift fulfilled', ['reference' => $reference, 'gift_id' => $gift->id]);
+            Log::info('Gift fulfilled', [
+                'reference' => $reference,
+                'gift_ids'  => $gifts->pluck('id')->all(),
+            ]);
         }
 
         return $status;

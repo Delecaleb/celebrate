@@ -140,7 +140,9 @@ class PaymentWebhookTest extends TestCase
         $this->postPaystack($payload)->assertOk();
 
         $this->assertSame(5000.0, (float) $owner->fresh()->wallet_balance);
-        $this->assertSame(1, WalletTransaction::where('reference', $gift->transaction_reference)->count());
+        // The receiving leg is referenced "{payment}-in-{gift id}": a basket
+        // credits per gift, and wallet_transactions.reference is unique.
+        $this->assertSame(1, WalletTransaction::where('reference', 'like', $gift->transaction_reference . '-in-%')->count());
     }
 
     public function test_a_usd_gift_lands_in_the_global_wallet(): void

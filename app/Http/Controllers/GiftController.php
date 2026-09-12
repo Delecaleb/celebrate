@@ -26,6 +26,9 @@ class GiftController extends Controller
      */
     private const MAX_QUANTITY = 99;
 
+    /** A basket is a handful of gifts, not the whole catalogue. */
+    private const MAX_LINES = 20;
+
     public function __construct(
         private WalletService   $wallet,
         private CurrencyService $currency,
@@ -38,6 +41,107 @@ class GiftController extends Controller
     private function quantityFrom(Request $request): int
     {
         return max(1, min(self::MAX_QUANTITY, (int) $request->input('quantity', 1)));
+    }
+
+    /**
+     * The basket, as [platform_gift_id => quantity].
+     *
+     * Accepts either shape: an items[] array from the picker, or the older
+     * single platform_gift_id + quantity, which the mobile client and every
+     * existing link still send. Repeats of the same gift are folded together
+     * so one basket never produces two rows for one gift.
+     *
+     * @return array<int, int>
+     */
+    private function basketFrom(Request $request): array
+    {
+        $items = $request->input('items');
+
+        if (! is_array($items) || $items === []) {
+            return [(int) $request->input('platform_gift_id') => $this->quantityFrom($request)];
+        }
+
+        $basket = [];
+
+        foreach ($items as $item) {
+            $id = (int) ($item['platform_gift_id'] ?? 0);
+
+            if ($id <= 0) {
+                continue;
+            }
+
+            $quantity = max(1, min(self::MAX_QUANTITY, (int) ($item['quantity'] ?? 1)));
+
+            $basket[$id] = min(self::MAX_QUANTITY, ($basket[$id] ?? 0) + $quantity);
+        }
+
+        return $basket;
+    }
+
+    /**
+     * Rules shared by both payment routes.
+     *
+     * items[] and platform_gift_id are alternatives, so neither can simply be
+     * required — required_without keeps a request that names no gift at all
+     * from reaching the pricing code.
+     *
+     * @return array<string, mixed>
+     */
+    private function basketRules(): array
+    {
+        return [
+            'platform_gift_id' => ['required_without:items', 'nullable', 'exists:platform_available_gifts,id'],
+            'quantity'         => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_QUANTITY],
+
+            'items'                      => ['required_without:platform_gift_id', 'nullable', 'array', 'min:1', 'max:' . self::MAX_LINES],
+            'items.*.platform_gift_id'   => ['required', 'exists:platform_available_gifts,id'],
+            'items.*.quantity'           => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_QUANTITY],
+        ];
+    }
+
+    /**
+     * Price a basket against the catalogue.
+     *
+     * Everything that decides money happens here, from the gift rows the
+     * server loaded itself — the request only ever says which gifts and how
+     * many.
+     *
+     * @param  array<int, int>  $basket
+     * @return array{0: \Illuminate\Support\Collection, 1: float}
+     */
+    private function priceBasket(array $basket, string $currency): array
+    {
+        $gifts = PlatformAvailableGift::with('prices')
+            ->whereIn('id', array_keys($basket))
+            ->get();
+
+        abort_if($gifts->isEmpty(), 422, 'No gift was selected.');
+
+        $lines = $gifts->map(function (PlatformAvailableGift $gift) use ($basket, $currency) {
+            $quantity = $basket[$gift->id];
+
+            return (object) [
+                'gift'     => $gift,
+                'quantity' => $quantity,
+                'amount'   => round($gift->priceIn($currency) * $quantity, 2),
+            ];
+        })->values();
+
+        return [$lines, round($lines->sum('amount'), 2)];
+    }
+
+    /** "Warm Hug × 3" for one line, "3 gifts" once there are several. */
+    private static function basketLabel(\Illuminate\Support\Collection $lines): string
+    {
+        if ($lines->count() === 1) {
+            $line = $lines->first();
+
+            return self::label($line->gift->gift_name, $line->quantity);
+        }
+
+        $items = (int) $lines->sum('quantity');
+
+        return $items . ' gifts';
     }
 
     /** "Warm Hug" on its own, "Warm Hug × 3" when there is more than one. */
@@ -56,27 +160,20 @@ class GiftController extends Controller
             return response()->json(['message' => 'Authentication required.'], 401);
         }
 
-        $request->validate([
-            'platform_gift_id' => ['required', 'exists:platform_available_gifts,id'],
-            'celebration_id'   => ['required', 'exists:celebrations,id'],
-            'message'          => ['nullable', 'string', 'max:500'],
-            'quantity'         => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_QUANTITY],
+        $request->validate($this->basketRules() + [
+            'celebration_id' => ['required', 'exists:celebrations,id'],
+            'message'        => ['nullable', 'string', 'max:500'],
         ]);
 
         $user         = Auth::user();
-        $platformGift = PlatformAvailableGift::with('prices')->findOrFail($request->platform_gift_id);
         $userCurrency = $this->currency->forUser($user);
-        $priceUsd     = (float) $platformGift->gift_price;
         $walletType   = (strtoupper($userCurrency) === 'USD') ? 'global' : 'local';
-        $quantity     = $this->quantityFrom($request);
-        // The charge is whatever the gift costs in this currency — the price an
-        // admin set for it if there is one, the converted default otherwise —
-        // times how many were asked for. Multiplied here rather than trusting
-        // any total the browser sends.
-        $unitPrice    = $platformGift->priceIn($userCurrency);
-        $price        = round($unitPrice * $quantity, 2);
 
-        if (! $this->wallet->hasSufficientBalance($user, $price, $walletType)) {
+        // Everything about the money is worked out from the catalogue, not
+        // from the request: the browser only says which gifts and how many.
+        [$lines, $total] = $this->priceBasket($this->basketFrom($request), $userCurrency);
+
+        if (! $this->wallet->hasSufficientBalance($user, $total, $walletType)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Insufficient wallet balance.',
@@ -84,16 +181,20 @@ class GiftController extends Controller
             ], 422);
         }
 
-        $reference    = 'wallet-' . Str::uuid();
+        $reference   = 'wallet-' . Str::uuid();
+        $senderName  = trim($user->first_name . ' ' . $user->last_name);
+        $basketLabel = self::basketLabel($lines);
 
-        $gift = Gift::create([
+        // One row per gift, all sharing the reference — that is what makes it
+        // one basket rather than several unrelated sends.
+        $gifts = $lines->map(fn ($line) => Gift::create([
             'celebration_id'        => $request->celebration_id,
-            'platform_gift_id'      => $platformGift->id,
-            'quantity'              => $quantity,
+            'platform_gift_id'      => $line->gift->id,
+            'quantity'              => $line->quantity,
             'sender_user_id'        => $user->id,
-            'sender_name'           => trim($user->first_name . ' ' . $user->last_name),
+            'sender_name'           => $senderName,
             'sender_email'          => $user->email,
-            'amount'                => $price,
+            'amount'                => $line->amount,
             'currency'              => $userCurrency,
             'guest_currency'        => $userCurrency,
             'conversion_rate'       => 1.0,
@@ -102,66 +203,69 @@ class GiftController extends Controller
             'payment_status'        => 'paid',
             'message'               => $request->message,
             'is_anonymous'          => false,
-        ]);
+        ]));
 
+        // One debit for what was actually paid, however many lines it covered.
         $this->wallet->debit(
             user:             $user,
-            amount:           $price,
-            description:      'Gift sent: ' . self::label($platformGift->gift_name, $quantity),
+            amount:           $total,
+            description:      'Gift sent: ' . $basketLabel,
             reference:        $reference,
-            source:           $gift,
-            originalAmount:   $price,
+            source:           $gifts->first(),
+            originalAmount:   $total,
             originalCurrency: $userCurrency,
             walletType:       $walletType
         );
 
         // Credit celebration owner's wallet
-        $celebration = $gift->celebration()->with('user')->first();
-        if ($celebration) {
-            $owner = $celebration->user;
-            $this->wallet->credit(
-                user:             $owner,
-                amount:           $price,
-                description:      'Gift received: ' . self::label($platformGift->gift_name, $quantity),
-                // A wallet gift writes two ledger rows — money out of one
-                // account and into another — and wallet_transactions.reference
-                // is unique, so the two legs cannot share a reference. Sharing
-                // one meant every wallet send died on the credit.
-                reference:        $reference . '-in',
-                source:           $gift,
-                originalAmount:   $price,
-                originalCurrency: $userCurrency,
-                walletType:       $walletType
-            );
+        $celebration = $gifts->first()->celebration()->with('user')->first();
+
+        if ($celebration?->user) {
+            foreach ($gifts as $gift) {
+                $this->wallet->credit(
+                    user:             $celebration->user,
+                    amount:           (float) $gift->amount,
+                    description:      'Gift received: ' . $gift->load('platformGift')->label(),
+                    // A wallet gift writes ledger rows on both sides, and
+                    // wallet_transactions.reference is unique — so the legs
+                    // cannot share one. Sharing it meant every wallet send
+                    // died on the credit.
+                    reference:        $reference . '-in-' . $gift->id,
+                    source:           $gift,
+                    originalAmount:   (float) $gift->amount,
+                    originalCurrency: $userCurrency,
+                    walletType:       $walletType
+                );
+            }
         }
 
         $newBalanceDisplay = $this->wallet->balance($user, $walletType);
         $symbol            = config("currency.currencies.{$userCurrency}.symbol", $userCurrency);
 
-        $gift->load('platformGift');
+        $gifts->each->load('platformGift');
 
         if ($celebration?->user?->email) {
             Mail::to($celebration->user->email)->queue(
-                new GiftReceivedMail($gift, $celebration)
+                new GiftReceivedMail($gifts, $celebration)
             );
         }
 
         // A wallet gift is still a gift: the sender gets the same receipt as
         // someone who paid by card.
-        if ($celebration && filter_var($gift->sender_email, FILTER_VALIDATE_EMAIL)) {
+        if ($celebration && filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
             try {
-                Mail::to($gift->sender_email)->queue(new GiftSentMail($gift, $celebration));
+                Mail::to($user->email)->queue(new GiftSentMail($gifts, $celebration));
             } catch (\Throwable $e) {
                 Log::warning('Gift receipt could not be queued', [
-                    'gift_id' => $gift->id,
-                    'error'   => $e->getMessage(),
+                    'reference' => $reference,
+                    'error'     => $e->getMessage(),
                 ]);
             }
         }
 
         return response()->json([
             'success'     => true,
-            'message'     => '🎁 ' . self::label($platformGift->gift_name, $quantity) . ' sent successfully!',
+            'message'     => '🎁 ' . $basketLabel . ' sent successfully!',
             'new_balance' => $symbol . number_format($newBalanceDisplay, 2),
         ]);
     }
@@ -176,36 +280,34 @@ class GiftController extends Controller
         // the receipt to. Signing in is for paying out of a wallet.
         $guest = ! Auth::check();
 
-        $request->validate([
-            'platform_gift_id' => ['required', 'exists:platform_available_gifts,id'],
-            'celebration_id'   => ['required', 'exists:celebrations,id'],
-            'message'          => ['nullable', 'string', 'max:500'],
-            'quantity'         => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_QUANTITY],
-            'guest_name'       => [$guest ? 'required' : 'nullable', 'string', 'max:120'],
-            'guest_email'      => [$guest ? 'required' : 'nullable', 'email', 'max:190'],
+        $request->validate($this->basketRules() + [
+            'celebration_id' => ['required', 'exists:celebrations,id'],
+            'message'        => ['nullable', 'string', 'max:500'],
+            'guest_name'     => [$guest ? 'required' : 'nullable', 'string', 'max:120'],
+            'guest_email'    => [$guest ? 'required' : 'nullable', 'email', 'max:190'],
         ]);
 
         $user         = Auth::user();
         $senderName   = $guest ? $request->guest_name  : trim($user->first_name . ' ' . $user->last_name);
         $senderEmail  = $guest ? $request->guest_email : $user->email;
 
-        $platformGift = PlatformAvailableGift::with('prices')->findOrFail($request->platform_gift_id);
         $userCurrency = $guest ? $this->currency->forVisitor() : $this->currency->forUser($user);
-        $priceUsd     = (float) $platformGift->gift_price;
         $walletType   = (strtoupper($userCurrency) === 'USD') ? 'global' : 'local';
-        $quantity     = $this->quantityFrom($request);
-        $price        = round($platformGift->priceIn($userCurrency) * $quantity, 2);
         $reference    = 'gift-pay-' . Str::uuid();
 
-        // Pre-create the gift record so the callback can find it
-        $gift = Gift::create([
+        [$lines, $price] = $this->priceBasket($this->basketFrom($request), $userCurrency);
+
+        // Pre-create the gift records so the callback can find them. They all
+        // carry the one reference, which is what makes them a single basket
+        // paid for once.
+        $gifts = $lines->map(fn ($line) => Gift::create([
             'celebration_id'        => $request->celebration_id,
-            'platform_gift_id'      => $platformGift->id,
-            'quantity'              => $quantity,
+            'platform_gift_id'      => $line->gift->id,
+            'quantity'              => $line->quantity,
             'sender_user_id'        => $user?->id,
             'sender_name'           => $senderName,
             'sender_email'          => $senderEmail,
-            'amount'                => $price,
+            'amount'                => $line->amount,
             'currency'              => $userCurrency,
             'guest_currency'        => $userCurrency,
             'conversion_rate'       => 1.0,
@@ -214,7 +316,9 @@ class GiftController extends Controller
             'payment_status'        => 'pending',
             'message'               => $request->message,
             'is_anonymous'          => false,
-        ]);
+        ]));
+
+        $gift = $gifts->first();
 
         try {
             if ($walletType === 'global') {
@@ -223,7 +327,7 @@ class GiftController extends Controller
                     currency:   'USD',
                     successUrl: route('gift.stripe.success') . '?reference=' . $reference . '&session_id={CHECKOUT_SESSION_ID}',
                     cancelUrl:  route('celebrations.show', $gift->celebration->slug) . '?cancelled=1',
-                    metadata:   ['gift_id' => $gift->id, 'reference' => $reference],
+                    metadata:   ['gift_id' => $gift->id, 'reference' => $reference, 'lines' => $gifts->count()],
                 );
 
                 return response()->json([
@@ -241,8 +345,10 @@ class GiftController extends Controller
                 'reference'      => $reference,
             ]);
 
-            // Update gift with the paystack-generated reference for callback lookup
-            $gift->update(['transaction_reference' => $txn['reference']]);
+            // Paystack mints its own reference; every row in the basket has to
+            // move onto it together or the callback will only find some of them.
+            Gift::where('transaction_reference', $reference)
+                ->update(['transaction_reference' => $txn['reference']]);
 
             return response()->json([
                 'success'           => true,
@@ -259,10 +365,13 @@ class GiftController extends Controller
                 'authorization_url' => $txn['authorization_url'],
             ]);
         } catch (\Throwable $e) {
-            $gift->delete();
+            // Nothing was charged, so leave no pending rows behind.
+            Gift::where('transaction_reference', $reference)->delete();
+
             Log::error('Gift payment initiation failed', [
                 'provider' => $walletType === 'global' ? 'stripe' : 'paystack',
                 'currency' => $userCurrency,
+                'lines'    => $lines->count(),
                 'error'    => $e->getMessage(),
             ]);
 
