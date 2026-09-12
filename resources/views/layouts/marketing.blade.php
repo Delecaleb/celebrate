@@ -200,7 +200,6 @@
             <div class="foot-meta">
                 <span><i class="mdi mdi-shield-check-outline"></i> Secure payments</span>
                 <span><i class="mdi mdi-credit-card-outline"></i> Paystack &amp; Stripe</span>
-                <a href="{{ route('sitemap') }}">Sitemap</a>
             </div>
         </div>
     </div>

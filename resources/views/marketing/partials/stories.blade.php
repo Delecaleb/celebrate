@@ -145,7 +145,7 @@
         </div>
 
         <p class="story-all" x-show="shown >= total" x-cloak>
-            That's all thirty-six. Yours would sit here just as well.
+            Beautiful Stories. Beautifully Preserved. Create yours now!
         </p>
     </div>
 </section>
