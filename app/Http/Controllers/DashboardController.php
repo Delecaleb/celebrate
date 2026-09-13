@@ -122,10 +122,12 @@ class DashboardController extends Controller
                 // figures — balances, unread counts, event lists. Tell the
                 // router not to keep them in its in-memory cache.
                 'cache' => false,
-            ]);
+            // One URL, two representations. Without these headers a browser can
+            // cache the JSON under the page's address and show it raw on Back.
+            ])->header('Vary', 'X-Partial')->header('Cache-Control', 'no-store, private');
         }
 
-        return view('layouts.dashboard', $data);
+        return response()->view('layouts.dashboard', $data)->header('Vary', 'X-Partial');
     }
 
     /**

@@ -14,7 +14,7 @@
 
             <h1 class="h-display">
                 Your day is coming.
-                <span class="t-serif">Let them make a fuss.</span>
+                <span class="t-serif">Let's make it memorable.</span>
             </h1>
 
             <p class="lead">

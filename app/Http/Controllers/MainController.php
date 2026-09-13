@@ -278,15 +278,17 @@ class MainController extends Controller
         $data['page']     = $page;
         $data['navItems'] = self::NAV;
 
+        // One URL, two representations. Without these headers a browser can
+        // cache the JSON under the page's address and show it raw on Back.
         if ($request->header('X-Partial')) {
             return response()->json([
                 'title'       => $data['title'],
                 'description' => $data['description'],
                 'nav'         => $data['nav'],
                 'html'        => view("marketing.partials.{$page}", $data)->render(),
-            ]);
+            ])->header('Vary', 'X-Partial')->header('Cache-Control', 'no-store, private');
         }
 
-        return view('layouts.marketing', $data);
+        return response()->view('layouts.marketing', $data)->header('Vary', 'X-Partial');
     }
 }

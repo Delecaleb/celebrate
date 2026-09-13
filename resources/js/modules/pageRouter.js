@@ -79,9 +79,14 @@ async function navigate(pathname, { push = true } = {}) {
         let data = cache.get(pathname);
 
         if (!data) {
-            const res = await fetch(pathname, {
+            // The partial is fetched from its own URL and never cached by the
+            // browser. Fetched from the page's own URL, the JSON was filed in
+            // the HTTP cache under that address — and pressing Back could then
+            // replay it in place of the page, showing raw markup.
+            const res = await fetch(`${pathname}?_partial=1`, {
                 headers: { 'X-Partial': '1', 'Accept': 'application/json' },
                 credentials: 'same-origin',
+                cache: 'no-store',
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             data = await res.json();
