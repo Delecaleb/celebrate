@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use AppSupportOutbox;
+use App\Support\Outbox;
 use App\Http\Controllers\Controller;
 use App\Models\BulkCelebrant;
 use App\Models\User;

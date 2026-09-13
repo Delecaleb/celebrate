@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use AppSupportOutbox;
+use App\Support\Outbox;
 use App\Http\Controllers\Controller;
 use App\Mail\GiftReceivedMail;
 use App\Models\Gift;

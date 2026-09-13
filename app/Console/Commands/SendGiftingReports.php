@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use AppSupportOutbox;
+use App\Support\Outbox;
 use App\Mail\GiftingReportMail;
 use App\Models\Gift;
 use App\Models\User;

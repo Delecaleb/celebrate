@@ -51,8 +51,9 @@ php artisan up
 
 ## 3. The two processes that must always be running
 
-Neither is optional. Without the queue worker no email is ever delivered —
-password resets included. Without cron nothing is reconciled or reminded.
+Neither is optional. Without cron no email is ever delivered — password resets
+included — and nothing is reconciled or reminded. The queue worker handles
+everything else that runs in the background.
 
 **Queue worker** — `/etc/supervisor/conf.d/celebratemi-worker.conf`:
 
@@ -88,6 +89,7 @@ That one line drives:
 | `mail:celebration-reminders` | 08:00 daily | guests are not reminded |
 | `mail:celebration-countdowns` | 09:00 daily | owners are not reminded |
 | `mail:gifting-reports` | Mon 10:00, 1st monthly | no gifting reports |
+| `emails:send` | every minute | **nothing is emailed at all** — see §9 |
 
 ---
 
@@ -251,7 +253,40 @@ is copied onto the row. Customers never see them; an admin opening an account
 is a matter for the platform's owner, not something to put in the customer's
 own activity feed.
 
-## 9. Credentials and currencies from the panel
+## 9. Mail — the outbox
+
+Nothing is sent inline. Every email is written to the `email_queues` table the
+moment something decides to send it — subject and body already rendered — and
+posted by `emails:send`, which the scheduler runs every minute. So the only
+process mail depends on is the cron entry in §3 that the app already needs.
+
+```bash
+php artisan emails:send            # send what is waiting, now
+php artisan emails:send --limit=200
+php artisan emails:send --id=42    # one specific email, ignoring its schedule
+```
+
+**Admin → Outbox** lists every email with its status, and opening one shows the
+rendered message exactly as the recipient sees it, plus the server's own reply
+if it was refused. That is the answer to "I never got my receipt": you can see
+whether it was written, whether it went, and what went wrong.
+
+A refused email is retried after 1, then 10, then 60 minutes, and gives up
+after three attempts. Failed ones stay in the table until somebody retries them
+by hand — a bad address does not fix itself, and deleting the evidence helps
+nobody. **Hold** stops one that should never have been written.
+
+Two things worth knowing:
+
+- The body is rendered when the email is *queued*, not when it is sent. A
+  template that cannot render therefore fails in front of whoever caused it,
+  and the stored copy is exactly what was delivered rather than a guess. The
+  flip side is that fixing a template does not change mail already queued.
+- Admin → Settings → Email tests the credentials by sending immediately, which
+  proves the mailbox works and nothing about whether mail is moving. If the
+  outbox is stalled, that page says so in red — believe the red.
+
+## 10. Credentials and currencies from the panel
 
 `settings.manage` opens **Settings** and **Currencies**. Anything set there
 wins over `.env`; anything left blank falls through to `.env` and then to the
@@ -285,7 +320,7 @@ them, and a value rotated in the panel does not need a redeploy. `APP_KEY` does
 still matter: change it and every stored secret becomes unreadable and has to
 be re-entered.
 
-## 10. Known manual step
+## 11. Known manual step
 
 Withdrawals are **bookkeeping only**. `Admin → Withdrawals → Approve` marks a
 payout complete; it does not move money. Someone has to make the bank transfer

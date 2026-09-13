@@ -6,6 +6,7 @@ use App\Mail\GiftReceivedMail;
 use App\Mail\GiftSentMail;
 use App\Models\Celebration;
 use App\Models\Comment;
+use App\Models\EmailQueue;
 use App\Models\Gift;
 use App\Models\PlatformAvailableGift;
 use App\Models\User;
@@ -71,8 +72,13 @@ class GiftNotificationTest extends TestCase
 
         app(PaymentFulfilmentService::class)->fulfilGift($reference);
 
-        Mail::assertQueued(GiftReceivedMail::class, fn ($mail) => $mail->hasTo('celebrant@example.com'));
-        Mail::assertQueued(GiftSentMail::class, fn ($mail) => $mail->hasTo('ada@example.com'));
+        // Mail lands in the outbox now, not in Laravel's queue.
+        $this->assertDatabaseHas('email_queues', [
+            'type' => 'gift.received', 'to_address' => 'celebrant@example.com', 'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('email_queues', [
+            'type' => 'gift.sent', 'to_address' => 'ada@example.com', 'status' => 'pending',
+        ]);
     }
 
     public function test_settling_twice_does_not_send_the_mail_twice(): void
@@ -87,7 +93,7 @@ class GiftNotificationTest extends TestCase
         $service->fulfilGift($reference);
         $service->fulfilGift($reference);
 
-        Mail::assertQueuedCount(2);   // one each, not two each
+        $this->assertSame(2, EmailQueue::count());   // one each, not two each
     }
 
     public function test_a_giver_without_an_email_still_settles(): void
@@ -102,8 +108,9 @@ class GiftNotificationTest extends TestCase
 
         $this->assertSame(PaymentFulfilmentService::DONE, $status);
         $this->assertSame('paid', $gift->fresh()->payment_status);
-        Mail::assertNotQueued(GiftSentMail::class);
-        Mail::assertQueued(GiftReceivedMail::class);
+        // No address to send a receipt to, so none was written.
+        $this->assertSame(0, EmailQueue::where('type', 'gift.sent')->count());
+        $this->assertSame(1, EmailQueue::where('type', 'gift.received')->count());
     }
 
     public function test_the_receipt_shows_the_currency_actually_charged(): void

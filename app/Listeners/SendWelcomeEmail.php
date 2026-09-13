@@ -2,7 +2,7 @@
 
 namespace App\Listeners;
 
-use AppSupportOutbox;
+use App\Support\Outbox;
 use App\Mail\HowItWorksMail;
 use App\Mail\WelcomeMail;
 use Illuminate\Auth\Events\Registered;

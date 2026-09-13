@@ -616,6 +616,15 @@
                         <div class="nav-icon"><i class="mdi mdi-cash-multiple"></i></div>
                         <span>Currencies</span>
                     </a>
+                    @php $waiting = \App\Support\QueueHealth::check(); @endphp
+                    <a href="{{ route('admin.outbox') }}" class="nav-item {{ request()->routeIs('admin.outbox*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-email-outline"></i></div>
+                        <span>Outbox</span>
+                        {{-- Only worth a badge when it means something is wrong. --}}
+                        @if (! $waiting['healthy'] || $waiting['failed'] > 0)
+                            <span class="badge badge-red" style="margin-left:auto">{{ $waiting['stale'] + $waiting['failed'] }}</span>
+                        @endif
+                    </a>
                 @endif
 
                 @if ($me?->is_super)

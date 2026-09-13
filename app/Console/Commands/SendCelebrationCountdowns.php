@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use AppSupportOutbox;
+use App\Support\Outbox;
 use App\Mail\CelebrationCountdownMail;
 use App\Models\Celebration;
 use Illuminate\Console\Command;

@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\AdminCelebrationController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminCurrencyController;
 use App\Http\Controllers\Admin\AdminGiftController;
+use App\Http\Controllers\Admin\AdminOutboxController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminPaymentController;
@@ -277,6 +278,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/settings/{group}',       [AdminSettingsController::class, 'edit'])->name('settings')->where('group', 'payments|mail|location');
             Route::put('/settings/{group}',       [AdminSettingsController::class, 'update'])->name('settings.update')->where('group', 'payments|mail|location');
             Route::post('/settings/{group}/test', [AdminSettingsController::class, 'test'])->name('settings.test')->where('group', 'payments|mail|location');
+
+            /*
+            | The outbox. Sits behind settings.manage because it is mail
+            | configuration's other half — and because a rendered email can
+            | carry personal detail, so it is not for every staff member.
+            */
+            Route::get('/outbox',                  [AdminOutboxController::class, 'index'])->name('outbox');
+            Route::get('/outbox/{email}',          [AdminOutboxController::class, 'show'])->name('outbox.show');
+            Route::get('/outbox/{email}/preview',  [AdminOutboxController::class, 'preview'])->name('outbox.preview');
+            Route::post('/outbox/{email}/retry',   [AdminOutboxController::class, 'retry'])->name('outbox.retry');
+            Route::post('/outbox/{email}/hold',    [AdminOutboxController::class, 'hold'])->name('outbox.hold');
 
             Route::get('/currencies',               [AdminCurrencyController::class, 'index'])->name('currencies');
             Route::post('/currencies',              [AdminCurrencyController::class, 'store'])->name('currencies.store');

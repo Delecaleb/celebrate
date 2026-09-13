@@ -164,9 +164,9 @@ class GiftBasketTest extends TestCase
         $this->assertEqualsWithDelta(4.0, (float) $owner->fresh()->global_wallet_balance, 0.01);
 
         // One mail each way for the basket, not one per line.
-        Mail::assertQueuedCount(2);
-        Mail::assertQueued(GiftReceivedMail::class);
-        Mail::assertQueued(GiftSentMail::class);
+        $this->assertSame(2, \App\Models\EmailQueue::count());
+        $this->assertSame(1, \App\Models\EmailQueue::where('type', 'gift.received')->count());
+        $this->assertSame(1, \App\Models\EmailQueue::where('type', 'gift.sent')->count());
     }
 
     public function test_settling_a_basket_twice_pays_out_once(): void
