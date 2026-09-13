@@ -810,9 +810,13 @@
                                 <textarea x-model="message" rows="2"
                                           placeholder="Write {{ $celebration->celebrant_name }} a message…"></textarea>
                                 <div class="composer-tools">
+                                    {{-- Video wishes hidden for now. Remove this comment
+                                         wrapper to bring the record button back; the
+                                         recorder modal and video playback are untouched.
                                     <button type="button" class="ibtn ibtn-bare" @click="openVideoRecorder()" aria-label="Record video">
                                         <i class="mdi mdi-video-outline"></i>
                                     </button>
+                                    --}}
                                     <label for="imageUpload" class="ibtn ibtn-bare cursor-pointer" aria-label="Add photo">
                                         <i class="mdi mdi-image-outline"></i>
                                     </label>
@@ -1231,6 +1235,9 @@
     :walletBalance="$walletBalance"
     :isAuthenticated="$isAuthenticated"
     :celebrationId="$celebration->id"
+    {{-- Whether the gateway for this visitor's currency is switched on, so a
+         paused gateway hides the card button instead of failing on click. --}}
+    :cardPaymentsOpen="\App\Support\PaymentGateways::canCheckout($visitorCurrency)"
 />
 
 <x-wishes-modal
@@ -1240,6 +1247,7 @@
     :isAuthenticated="$isAuthenticated"
     :isOwner="$isOwner"
     :celebrationId="$celebration->id"
+    :cardPaymentsOpen="\App\Support\PaymentGateways::canCheckout($visitorCurrency)"
 />
 
 @include('celebrations.partials.share-fallback')
@@ -1301,6 +1309,10 @@ $photoBookComments = $celebration->comments
         commentStoreUrl: "{{ route('celebration.comment.store') }}",
         wishesUrl:       "{{ route('celebrant.create-wishes') }}",
         csrfToken:       "{{ csrf_token() }}",
+        // Cover photo and registry image limit, checked in the browser before
+        // uploading. Same number the server validates against.
+        imageMaxBytes:   {{ \App\Support\UploadLimits::bytes() }},
+        imageMaxLabel:   "{{ \App\Support\UploadLimits::label() }}",
         photobook: {
             title:           @json($celebration->title),
             celebrantName:   @json($celebration->celebrant_name ?? ''),

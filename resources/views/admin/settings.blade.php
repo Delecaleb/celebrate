@@ -87,6 +87,18 @@
                         </span>
                     </div>
 
+                    @if (($field['type'] ?? null) === 'toggle')
+                        {{-- The hidden 0 is what makes "off" possible: an unticked
+                             checkbox sends nothing at all, and nothing reads as
+                             "leave it as it was". --}}
+                        @php $on = filter_var($field['display'] === '' ? true : $field['display'], FILTER_VALIDATE_BOOLEAN); @endphp
+                        <input type="hidden" name="settings[{{ $key }}]" value="0">
+                        <label style="display:inline-flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.88rem;font-weight:600">
+                            <input id="{{ $key }}" type="checkbox" name="settings[{{ $key }}]" value="1" @checked($on)
+                                   style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
+                            <span>{{ $on ? 'Active — taking checkouts' : 'Inactive — checkouts paused' }}</span>
+                        </label>
+                    @else
                     <input id="{{ $key }}"
                            type="{{ ($field['secret'] ?? false) ? 'password' : 'text' }}"
                            name="settings[{{ $key }}]"
@@ -98,6 +110,7 @@
                                value="{{ old("settings.{$key}", $field['display']) }}"
                            @endif
                     >
+                    @endif
 
                     @if (! empty($field['help']))
                         <p style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem">{{ $field['help'] }}</p>

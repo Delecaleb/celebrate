@@ -308,7 +308,10 @@ class CelebrationController extends Controller
                 'wishlist' => ['required', 'array'],
                 'wishlist.*.name' => ['required', 'string'],
                 'wishlist.*.amount' => ['nullable', 'numeric', 'min:0'],
-                'wishlist.*.image' => ['nullable', 'image', 'max:2048'],
+                'wishlist.*.image' => ['nullable', 'image', \App\Support\UploadLimits::imageRule()],
+            ], [
+                // Shown to a person, so in megabytes — never "10240 kilobytes".
+                'wishlist.*.image.max' => 'Each registry image must be ' . \App\Support\UploadLimits::label() . ' or smaller.',
             ]);
 
             // Only the celebrant may add to their own registry. This route sits
@@ -522,10 +525,15 @@ public function updateCoverPhoto(Request $request, $id)
             ], 403);
         }
 
+        // Shown to a person, so in megabytes — never "10240 kilobytes".
+        $tooBig = 'Each photo must be ' . \App\Support\UploadLimits::label() . ' or smaller.';
+
         if ($request->hasFile('cover_photos')) {
             $request->validate([
                 'cover_photos' => ['required', 'array', 'max:4'],
-                'cover_photos.*' => ['image', 'max:5120']
+                'cover_photos.*' => ['image', \App\Support\UploadLimits::imageRule()]
+            ], [
+                'cover_photos.*.max' => $tooBig,
             ]);
 
             $paths = [];
@@ -544,7 +552,9 @@ public function updateCoverPhoto(Request $request, $id)
         }
 
         $request->validate([
-            'cover_photo' => ['required', 'image', 'max:4096']
+            'cover_photo' => ['required', 'image', \App\Support\UploadLimits::imageRule()]
+        ], [
+            'cover_photo.max' => $tooBig,
         ]);
 
         $path = $request->file('cover_photo')->store('covers', 'public');

@@ -5,6 +5,8 @@
     'walletBalance'    => 0,
     'isAuthenticated'  => false,
     'celebrationId'    => null,
+    // False when an admin has paused the gateway this visitor's currency uses.
+    'cardPaymentsOpen' => true,
 ])
 
 <x-modal name="show-gifts" title="Gifts" maxWidth="2xl" focusable class="my-auto">
@@ -29,7 +31,7 @@
         <div x-show="view === 'grid'" x-transition>
 
             <p class="text-xs text-gray-400 px-6 pt-3 pb-1">
-                Tap a gift to send it — tap again to send more than one
+                Tap a gift to add it · tap again for more · <span class="font-semibold">×</span> to take it out
             </p>
 
             <div class="grid grid-cols-3 md:grid-cols-6 gap-3 p-5 max-h-[380px] overflow-y-auto">
@@ -38,6 +40,10 @@
                     {{-- Drawn from the icon font unless a gift has real artwork
                          uploaded. Nothing has to be uploaded for a gift to look
                          finished, and the tile takes the gift's own colour. --}}
+                    {{-- Wrapper, because the remove control cannot live inside the
+                         tile: a button nested in a button is invalid and the
+                         inner click would also count as another tap. --}}
+                    <div class="relative">
                     <button
                         type="button"
                         @click="tapGift({
@@ -83,6 +89,18 @@
                             {{ $visitorSymbol }}{{ number_format($gift->displayPrice, 2) }}
                         </p>
                     </button>
+
+                    {{-- Only on a picked tile: takes the whole gift back out,
+                         however many times it was tapped. --}}
+                    <button type="button"
+                            x-show="pickedCount({{ $gift->id }}) > 0" x-cloak
+                            @click="removeLine({{ $gift->id }})"
+                            aria-label="Remove {{ $gift->gift_name }}"
+                            title="Remove"
+                            class="absolute -top-1.5 -left-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold leading-none text-white shadow hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300">
+                        &times;
+                    </button>
+                    </div>
                 @endforeach
             </div>
 
@@ -169,6 +187,14 @@
 
                         <p class="w-20 shrink-0 text-right text-sm font-black text-gray-900"
                            x-text="visitorSymbol + formatNum(line.gift.price * line.quantity)"></p>
+
+                        {{-- Out in one go, rather than tapping minus down to zero. --}}
+                        <button type="button" @click="removeLine(line.gift.id)"
+                                :aria-label="`Remove ${line.gift.name}`"
+                                title="Remove"
+                                class="h-8 w-8 shrink-0 rounded-full text-gray-400 hover:bg-rose-50 hover:text-rose-600">
+                            <i class="mdi mdi-trash-can-outline text-base"></i>
+                        </button>
                     </div>
                 </template>
 
@@ -193,6 +219,7 @@
                         <span x-text="error"></span>
                     </div>
 
+                    @if ($cardPaymentsOpen)
                     <button
                         type="button"
                         @click="initiatePayment()"
@@ -210,6 +237,14 @@
                             Preparing payment…
                         </span>
                     </button>
+                    @else
+                        {{-- Said before they fill anything in, not after a click
+                             that was always going to be refused. --}}
+                        <div class="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                            <i class="mdi mdi-pause-circle-outline text-base"></i>
+                            <span>Card payments in {{ $visitorCurrency }} are paused right now. Please try again a little later.</span>
+                        </div>
+                    @endif
 
                     <p class="text-xs text-gray-400 text-center">
                         <a href="{{ route('login') }}" class="underline">Sign in</a> to pay from your wallet instead.
@@ -268,6 +303,7 @@
                     {{-- Pay via Paystack --}}
                     <template x-if="!hasSufficientBalance()">
                         <div class="space-y-2">
+                            @if ($cardPaymentsOpen)
                             <p class="text-xs text-gray-400 text-center">
                                 Your wallet balance is insufficient. Pay securely to send this gift.
                             </p>
@@ -288,6 +324,14 @@
                                     Preparing payment…
                                 </span>
                             </button>
+                            @else
+                                {{-- Wallet sending never touches a gateway, so it
+                                     stays open; only topping up by card is paused. --}}
+                                <div class="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                                    <i class="mdi mdi-pause-circle-outline text-base"></i>
+                                    <span>Your wallet does not cover this, and card payments in {{ $visitorCurrency }} are paused right now. Please try again a little later.</span>
+                                </div>
+                            @endif
                         </div>
                     </template>
 

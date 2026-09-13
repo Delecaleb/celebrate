@@ -12,6 +12,7 @@ use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -304,6 +305,12 @@ class GiftController extends Controller
         $userCurrency = $guest ? $this->currency->forVisitor() : $this->currency->forUser($user);
         $walletType   = (strtoupper($userCurrency) === 'USD') ? 'global' : 'local';
         $reference    = 'gift-pay-' . Str::uuid();
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused payment leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($userCurrency)) {
+            return $refusal;
+        }
 
         [$lines, $price] = $this->priceBasket($this->basketFrom($request), $userCurrency);
 

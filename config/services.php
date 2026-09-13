@@ -38,6 +38,8 @@ return [
     'paystack' => [
         'secret'     => env('PAYSTACK_SECRET_KEY'),
         'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        // Whether new checkouts may start. Overridden from Settings → Payments.
+        'enabled'    => env('PAYSTACK_ENABLED', true),
     ],
 
     'stripe' => [
@@ -46,6 +48,8 @@ return [
         // Signing secret for the endpoint, from the Stripe dashboard. This is
         // not the API key — a webhook signed with the wrong one is rejected.
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // Whether new checkouts may start. Overridden from Settings → Payments.
+        'enabled' => env('STRIPE_ENABLED', true),
     ],
 
     'ipinfo' => [

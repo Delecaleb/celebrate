@@ -1224,8 +1224,25 @@
                 </div>
             </div>
 
+            {{-- The wallet picked decides the gateway: local currency goes
+                 through Paystack, USD through Stripe. Either can be paused
+                 from Settings → Payments, independently. --}}
+            @php
+                $fundOpen = [
+                    'local'  => \App\Support\PaymentGateways::canCheckout($userCurrency),
+                    'global' => \App\Support\PaymentGateways::canCheckout('USD'),
+                ];
+                $fundDefault = $hasLocalWallet ? 'local' : 'global';
+            @endphp
+            <div x-show="!({{ Js::from($fundOpen) }})[wallet_type || '{{ $fundDefault }}']" x-cloak
+                 class="flash-err" style="margin-top:1.25rem;margin-bottom:0">
+                <i class="mdi mdi-pause-circle-outline"></i>
+                <span>Card top-ups for this wallet are paused right now. Please try again a little later.</span>
+            </div>
+
             <button class="btn-solid btn-block" style="margin-top:1.75rem"
-                    @click="submit()" :disabled="loading || !amount">
+                    @click="submit()"
+                    :disabled="loading || !amount || !({{ Js::from($fundOpen) }})[wallet_type || '{{ $fundDefault }}']">
                 <span x-show="!loading"><i class="mdi mdi-credit-card-outline"></i> Proceed to payment</span>
                 <span x-show="loading" x-cloak><i class="mdi mdi-loading mdi-spin"></i> Redirecting…</span>
             </button>

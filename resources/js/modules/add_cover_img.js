@@ -15,6 +15,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Refuse an oversized photo before uploading anything: four large
+        // files are a long wait just to be told no. The limit comes from the
+        // server, so this can never disagree with the validation rule.
+        const maxBytes = window.CelebrationConfig?.imageMaxBytes ?? 10 * 1024 * 1024;
+        const maxLabel = window.CelebrationConfig?.imageMaxLabel ?? '10MB';
+        const tooBig   = Array.from(this.files).find((file) => file.size > maxBytes);
+
+        if (tooBig) {
+            alert(`"${tooBig.name}" is too large. Each photo must be ${maxLabel} or smaller.`);
+            this.value = '';
+            return;
+        }
+
         const coverContainer = document.querySelector('.celebration-cover');
         
         // Show loader overlay
@@ -45,10 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
 
+            // Accept: application/json is what makes a refused upload come back
+            // as a readable 422 message. Without it Laravel redirects, the HTML
+            // fails to parse, and all anyone saw was "Server error".
             const response = await fetch(
                 `/celebrant/${window.CelebrationConfig.celebrationId}/cover-photo`,
                 {
                     method: 'POST',
+                    headers: { 'Accept': 'application/json' },
                     body: formData
                 }
             );

@@ -11,6 +11,7 @@ use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -124,6 +125,12 @@ class GiftController extends Controller
         $isUsd        = strtoupper($currencyCode) === 'USD';
         $price        = $platformGift->priceIn($currencyCode);
         $reference    = 'gift-pay-'.Str::uuid();
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused payment leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($currencyCode)) {
+            return $refusal;
+        }
 
         $gift = Gift::create([
             'celebration_id'        => $data['celebration_id'],

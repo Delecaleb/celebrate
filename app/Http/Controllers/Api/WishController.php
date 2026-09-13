@@ -12,6 +12,7 @@ use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -39,9 +40,11 @@ class WishController extends Controller
             'wishlist'          => ['required', 'array', 'min:1'],
             'wishlist.*.name'   => ['required', 'string', 'max:255'],
             'wishlist.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'wishlist.*.image'  => ['nullable', 'image', 'max:2048'],
+            'wishlist.*.image'  => ['nullable', 'image', \App\Support\UploadLimits::imageRule()],
             'wishlist.*.description' => ['nullable', 'string', 'max:1000'],
             'wishlist.*.wish_link'   => ['nullable', 'url', 'max:500'],
+        ], [
+            'wishlist.*.image.max' => 'Each registry image must be ' . \App\Support\UploadLimits::label() . ' or smaller.',
         ]);
 
         $celebration = Celebration::findOrFail($request->celebration_id);
@@ -221,6 +224,12 @@ class WishController extends Controller
         $currency  = strtoupper($data['currency']);
         $amount    = (float) $data['amount'];
         $reference = 'wish-pay-'.Str::uuid();
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused payment leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($currency)) {
+            return $refusal;
+        }
 
         $contribution = WishContribution::create([
             'wish_id'             => $wish->id,

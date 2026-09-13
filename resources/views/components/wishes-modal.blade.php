@@ -5,6 +5,8 @@
     'isAuthenticated' => false,
     'isOwner'         => false,
     'celebrationId'   => null,
+    // False when an admin has paused the gateway this visitor's currency uses.
+    'cardPaymentsOpen' => true,
 ])
 
 <div
@@ -294,6 +296,7 @@
 
  <template x-if="!hasSufficientBalance()">
  <div class="space-y-2">
+                            @if ($cardPaymentsOpen)
  <p class="text-xs text-gray-400 text-center"
                                x-text="isAuthenticated
                                     ? 'Your wallet is empty — pay securely to make this wish real'
@@ -316,6 +319,15 @@
                                     Preparing…
  </span>
  </button>
+                            @else
+                                {{-- Said up front rather than after a click that was
+                                     always going to be refused. Wallet contributions
+                                     never touch a gateway, so they stay open. --}}
+                                <div class="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
+                                    <i class="mdi mdi-pause-circle-outline text-base"></i>
+                                    <span>Card payments in {{ $visitorCurrency }} are paused right now. Please try again a little later.</span>
+                                </div>
+                            @endif
  </div>
  </template>
 

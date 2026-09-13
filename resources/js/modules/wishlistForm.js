@@ -32,6 +32,21 @@ export function wishlistForm() {
             const file = event.target.files[0];
             if (!file) return;
 
+            // Caught on pick rather than on save, so nobody fills in a whole
+            // registry before learning one picture was too big. The limit
+            // comes from the server, so it cannot disagree with the rule.
+            const maxBytes = window.CelebrationConfig?.imageMaxBytes ?? 10 * 1024 * 1024;
+            const maxLabel = window.CelebrationConfig?.imageMaxLabel ?? '10MB';
+
+            if (file.size > maxBytes) {
+                this.errorMessage     = `"${file.name}" is too large. Each registry image must be ${maxLabel} or smaller.`;
+                event.target.value    = '';
+                this.wishes[index].image   = null;
+                this.wishes[index].preview = '';
+                return;
+            }
+
+            this.errorMessage = '';
             this.wishes[index].image   = file;
             this.wishes[index].preview = URL.createObjectURL(file);
         },

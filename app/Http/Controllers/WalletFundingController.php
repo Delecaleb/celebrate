@@ -8,6 +8,7 @@ use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,12 @@ class WalletFundingController extends Controller
         $reference    = 'wf-' . Str::uuid();
 
         $currency = ($walletType === 'global') ? 'USD' : $userCurrency;
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused top-up leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($currency)) {
+            return $refusal;
+        }
 
         // Pre-create pending transaction so we can find it on callback
         $tx = WalletTransaction::create([

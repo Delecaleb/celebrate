@@ -9,6 +9,7 @@ use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +60,12 @@ class WalletController extends Controller
         $amount     = (float) $request->amount;
         $reference  = 'wf-'.Str::uuid();
         $currency   = $walletType === 'global' ? 'USD' : $this->currency->forUser($user);
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused top-up leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($currency)) {
+            return $refusal;
+        }
 
         $tx = WalletTransaction::create([
             'user_id'           => $user->id,

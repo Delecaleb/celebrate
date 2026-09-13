@@ -210,7 +210,9 @@ class CelebrationController extends Controller
 
         $request->validate([
             'cover_photos'   => ['required', 'array', 'max:4'],
-            'cover_photos.*' => ['image', 'max:5120'],
+            'cover_photos.*' => ['image', \App\Support\UploadLimits::imageRule()],
+        ], [
+            'cover_photos.*.max' => 'Each photo must be ' . \App\Support\UploadLimits::label() . ' or smaller.',
         ]);
 
         $paths = [];

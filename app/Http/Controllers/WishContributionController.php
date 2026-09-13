@@ -9,6 +9,7 @@ use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\WalletService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\PaystackService;
+use App\Support\PaymentGateways;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -152,6 +153,12 @@ class WishContributionController extends Controller
         $visitorCurrency = strtoupper($request->currency);
         $amountDisplay   = (float) $request->amount;
         $reference       = 'wish-pay-' . Str::uuid();
+
+        // A gateway an admin has switched off takes no new checkouts. Checked
+        // before anything is written, so a refused payment leaves no pending row.
+        if ($refusal = PaymentGateways::refuseCheckout($visitorCurrency)) {
+            return $refusal;
+        }
 
         $contribution = WishContribution::create([
             'wish_id'             => $wish->id,

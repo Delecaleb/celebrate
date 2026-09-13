@@ -38,6 +38,20 @@ class SettingsRepository
      */
     public const CATALOGUE = [
         'payments' => [
+            // The switches come first: they are what someone opening this page
+            // in a hurry is most likely looking for.
+            'paystack_enabled' => [
+                'label'  => 'Paystack checkout',
+                'config' => 'services.paystack.enabled',
+                'type'   => 'toggle',
+                'help'   => 'Off stops new naira checkouts. Payments already started still settle, and wallet gifts keep working.',
+            ],
+            'stripe_enabled' => [
+                'label'  => 'Stripe checkout',
+                'config' => 'services.stripe.enabled',
+                'type'   => 'toggle',
+                'help'   => 'Off stops new dollar checkouts. Payments already started still settle, and wallet gifts keep working.',
+            ],
             'paystack_secret' => [
                 'label'  => 'Paystack secret key',
                 'config' => 'services.paystack.secret',

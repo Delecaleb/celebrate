@@ -39,5 +39,23 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        /*
+         * File size errors in megabytes.
+         *
+         * Laravel's default reads "must not be greater than 10240 kilobytes",
+         * which nobody sizes a photo by. A custom replacer takes over from the
+         * built-in one entirely, so it still has to fill :max for strings,
+         * numbers and arrays itself.
+         */
+        \Illuminate\Support\Facades\Validator::replacer('max', function ($message, $attribute, $rule, $parameters) {
+            $max = $parameters[0] ?? '';
+
+            if (str_contains($message, ':max kilobytes') && is_numeric($max)) {
+                return str_replace(':max kilobytes', \App\Support\UploadLimits::label((int) $max), $message);
+            }
+
+            return str_replace(':max', (string) $max, $message);
+        });
     }
 }
