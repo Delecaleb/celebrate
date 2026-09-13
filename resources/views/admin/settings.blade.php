@@ -4,12 +4,15 @@
 @section('topbar-title', 'Settings')
 
 @section('topbar-actions')
-    <form method="POST" action="{{ route('admin.settings.test', $group) }}">
-        @csrf
-        <button type="submit" class="btn-filter">
-            <i class="mdi mdi-connection"></i> Test these credentials
-        </button>
-    </form>
+    {{-- Only groups that talk to an outside service have anything to test. --}}
+    @if (in_array($group, ['payments', 'mail', 'location'], true))
+        <form method="POST" action="{{ route('admin.settings.test', $group) }}">
+            @csrf
+            <button type="submit" class="btn-filter">
+                <i class="mdi mdi-connection"></i> Test these credentials
+            </button>
+        </form>
+    @endif
 @endsection
 
 @section('content')
@@ -91,12 +94,12 @@
                         {{-- The hidden 0 is what makes "off" possible: an unticked
                              checkbox sends nothing at all, and nothing reads as
                              "leave it as it was". --}}
-                        @php $on = filter_var($field['display'] === '' ? true : $field['display'], FILTER_VALIDATE_BOOLEAN); @endphp
+                        @php $on = filter_var($field['display'] === '' ? ($field['default'] ?? true) : $field['display'], FILTER_VALIDATE_BOOLEAN); @endphp
                         <input type="hidden" name="settings[{{ $key }}]" value="0">
                         <label style="display:inline-flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.88rem;font-weight:600">
                             <input id="{{ $key }}" type="checkbox" name="settings[{{ $key }}]" value="1" @checked($on)
                                    style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
-                            <span>{{ $on ? 'Active — taking checkouts' : 'Inactive — checkouts paused' }}</span>
+                            <span>{{ $on ? ($field['on_label'] ?? 'Active — taking checkouts') : ($field['off_label'] ?? 'Inactive — checkouts paused') }}</span>
                         </label>
                     @else
                     <input id="{{ $key }}"

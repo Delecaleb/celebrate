@@ -86,6 +86,13 @@ class CelebrationController extends Controller
                     'password' => Hash::make($request->password),
                 ]);
 
+                // A brand-new account, made by creating a celebration rather than
+                // through the sign-up page — it is still a sign-up, so it gets the
+                // same welcome. Registered is what the welcome listener waits on;
+                // the login branch above does not fire it, because an existing
+                // account has already been welcomed.
+                event(new \Illuminate\Auth\Events\Registered($user));
+
                 Auth::login($user);
             }
         }
@@ -227,7 +234,9 @@ class CelebrationController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        $frames = $isOwner ? \App\Models\Frame::all() : collect();
+        // Frames are an admin switch. Off, the picker has nothing to offer.
+        $framesEnabled = $isOwner && \App\Support\Features::framesEnabled();
+        $frames        = $framesEnabled ? \App\Models\Frame::all() : collect();
 
         return view('celebrations.show', [
             'celebration'     => $celebration,
@@ -240,6 +249,7 @@ class CelebrationController extends Controller
             'countdown'       => $countdown,
             'templates'       => $templates,
             'frames'          => $frames,
+            'framesEnabled'   => $framesEnabled,
             'visitorCurrency' => $visitorCurrency,
             'visitorSymbol'   => $visitorSymbol,
             'walletBalance'   => $walletBalance,
@@ -601,6 +611,14 @@ public function updateFrame(Request $request, $id)
         $request->validate([
             'frame_id' => ['nullable', 'exists:frames,id']
         ]);
+
+        // Taking a frame off is always allowed; putting one on needs the switch.
+        if ($request->frame_id !== null && ! \App\Support\Features::framesEnabled()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Frames are not available right now.'
+            ], 403);
+        }
 
         $celebration->frame_id = $request->frame_id;
         $celebration->save();

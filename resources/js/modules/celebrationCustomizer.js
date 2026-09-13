@@ -47,6 +47,47 @@ export function celebrationCustomizer(config) {
             return this.activeTemplate?.wishes_layout ?? 'scroll';
         },
 
+        /**
+         * What the colour wheel should show for 'bg' or 'text'.
+         *
+         * A native colour input only speaks #rrggbb, so an unset custom
+         * colour used to show as black. Show the theme's colour instead.
+         */
+        pickerValue(which) {
+            const own      = which === 'bg' ? this.customBg : this.customText;
+            const fromTheme = which === 'bg' ? this.activeTemplate?.page_bg : this.activeTemplate?.text_primary;
+            const hex      = [own, fromTheme].find(v => /^#[0-9a-f]{6}$/i.test(v ?? ''));
+
+            return hex ?? (which === 'bg' ? '#ffffff' : '#111111');
+        },
+
+        /**
+         * Set a custom colour from a picker, a preset or a typed hex.
+         *
+         * Accepts "#abc", "abc" and "#aabbcc"; empty means "use the theme".
+         * Returns false for anything else so the field can put back the
+         * last good value.
+         */
+        setColour(which, raw) {
+            const field = which === 'bg' ? 'customBg' : 'customText';
+            let value   = String(raw ?? '').trim();
+
+            if (value === '') {
+                this[field] = '';
+                return true;
+            }
+
+            if (!value.startsWith('#')) value = '#' + value;
+            if (/^#[0-9a-f]{3}$/i.test(value)) {
+                value = '#' + value.slice(1).split('').map(c => c + c).join('');
+            }
+            if (!/^#[0-9a-f]{6}$/i.test(value)) return false;
+
+            this[field]         = value.toLowerCase();
+            this.successMessage = '';
+            return true;
+        },
+
         get hasUnsavedChange() {
             return this.selectedTemplateId !== this.savedTemplateId
                 || this.customBg   !== this.savedCustomBg

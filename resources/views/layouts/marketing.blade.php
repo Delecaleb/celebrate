@@ -258,10 +258,22 @@
 
                     <div class="field">
                         <span class="field-label">When is it?</span>
-                        <div class="field-row">
-                            <input type="text" class="input datepicker" x-model="form.startDate" placeholder="Start date" aria-label="Start date">
-                            <input type="text" class="input datepicker" x-model="form.endDate" placeholder="End date" aria-label="End date">
+                        {{-- Two date boxes side by side read as one; each gets its own name. --}}
+                        <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+                            <div>
+                                <label for="ce-start" style="display:block;margin-bottom:0.3rem;font-size:0.8rem;font-weight:600;color:var(--muted)">
+                                    <i class="mdi mdi-calendar-start" aria-hidden="true"></i> Starts on
+                                </label>
+                                <input id="ce-start" type="text" class="input datepicker" x-model="form.startDate" placeholder="Pick the start date">
+                            </div>
+                            <div>
+                                <label for="ce-end" style="display:block;margin-bottom:0.3rem;font-size:0.8rem;font-weight:600;color:var(--muted)">
+                                    <i class="mdi mdi-calendar-end" aria-hidden="true"></i> Ends on <span style="font-weight:400">(optional)</span>
+                                </label>
+                                <input id="ce-end" type="text" class="input datepicker" x-model="form.endDate" placeholder="Pick the end date">
+                            </div>
                         </div>
+                        <p class="field-hint">A one-day celebration only needs the start date.</p>
                     </div>
 
                     <div class="field">

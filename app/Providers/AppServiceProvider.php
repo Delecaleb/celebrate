@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Listeners\SendWelcomeEmail;
 use App\Models\User;
 use App\Observers\UserObserver;
 use App\Services\LocationModule\LocationService;
@@ -11,8 +10,6 @@ use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
 use App\Services\PaymentSystem\WalletService;
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,7 +27,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Event::listen(Registered::class, SendWelcomeEmail::class);
+        // SendWelcomeEmail is not registered here: Laravel discovers it from
+        // app/Listeners by its handle(Registered) signature. Listing it here as
+        // well ran it twice, and every new account got two welcome emails.
         User::observe(UserObserver::class);
 
         // Behind a load balancer the app often sees plain HTTP, which would put

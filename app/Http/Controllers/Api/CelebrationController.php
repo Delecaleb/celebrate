@@ -135,7 +135,7 @@ class CelebrationController extends Controller
             'templates' => $isOwner
                 ? TemplateResource::collection(CelebrationTemplate::where('is_active', true)->orderBy('sort_order')->get())
                 : [],
-            'frames'    => $isOwner ? FrameResource::collection(Frame::all()) : [],
+            'frames'    => $isOwner && \App\Support\Features::framesEnabled() ? FrameResource::collection(Frame::all()) : [],
         ]);
     }
 
@@ -234,6 +234,12 @@ class CelebrationController extends Controller
         $celebration = $this->ownedBySlug($request, $slug);
 
         $request->validate(['frame_id' => ['nullable', 'exists:frames,id']]);
+
+        // Taking a frame off is always allowed; putting one on needs the switch.
+        if ($request->frame_id !== null && ! \App\Support\Features::framesEnabled()) {
+            return response()->json(['message' => 'Frames are not available right now.'], 403);
+        }
+
         $celebration->update(['frame_id' => $request->frame_id]);
 
         $frame = $celebration->fresh()->frame;

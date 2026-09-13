@@ -372,6 +372,29 @@
         border: 1px dashed var(--line); font-size: 1.3rem;
     }
     .set-add:hover { border-color: var(--primary); color: var(--primary); }
+    .set-hint { margin-top: 0.5rem; font-size: 0.76rem; color: var(--muted); }
+
+    /* colour pickers — wheel, hex box, presets */
+    .set-colour-row { display: flex; align-items: center; gap: 0.5rem; }
+    .set-colour-wheel {
+        position: relative; flex: none; width: 38px; height: 38px; border-radius: 10px;
+        border: 1px solid var(--line); cursor: pointer; overflow: hidden;
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.6);
+    }
+    /* the native input stays clickable but invisible over the swatch */
+    .set-colour-wheel input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+    .set-colour-hex { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: lowercase; }
+    .set-colour-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+    .set-colour-chip {
+        width: 24px; height: 24px; padding: 0; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line);
+    }
+    .set-colour-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--tpl-card, var(--surface)), 0 0 0 4px var(--primary); }
+    .set-colour-preview {
+        display: flex; align-items: baseline; gap: 0.6rem; margin-top: 0.9rem;
+        padding: 0.75rem 0.9rem; border-radius: 12px; border: 1px solid var(--line); font-size: 0.82rem;
+    }
+    .set-colour-preview strong { font-size: 1.2rem; }
 
     /* empty */
     .cel-empty { text-align: center; padding: 3rem 1rem; }
@@ -603,9 +626,15 @@
     </div>
 
     {{-- ══ RIGHT — tabs ═══════════════════════════════════════════════ --}}
-    <div class="cel-panel celebration-card" x-data="{ tab: 'wishes' }">
+    {{-- The owner lands on Settings: it is where a new page gets built. --}}
+    <div class="cel-panel celebration-card" x-data="{ tab: '{{ $isOwner ? 'settings' : 'wishes' }}' }">
 
         <div class="cel-tabs celebration-card" role="tablist">
+            @if($isOwner)
+                <button class="cel-tab" role="tab" :aria-selected="tab === 'settings'"  @click="tab = 'settings'">
+                    <i class="mdi mdi-tune-variant"></i> Settings
+                </button>
+            @endif
             <button class="cel-tab" role="tab" :aria-selected="tab === 'wishes'"  @click="tab = 'wishes'">
                 <i class="mdi mdi-message-text-outline"></i> Wishes
             </button>
@@ -616,9 +645,6 @@
                 <i class="mdi mdi-gift-outline"></i> Gifts
             </button>
             @if($isOwner)
-                <button class="cel-tab" role="tab" :aria-selected="tab === 'settings'"  @click="tab = 'settings'">
-                    <i class="mdi mdi-tune-variant"></i> Settings
-                </button>
                 <button class="cel-tab" role="tab" :aria-selected="tab === 'photobook'" @click="tab = 'photobook'">
                     <i class="mdi mdi-book-open-page-variant-outline"></i> Photobook
                 </button>
@@ -628,7 +654,7 @@
         <div class="cel-body">
 
             {{-- ── WISHES ──────────────────────────────────────────── --}}
-            <div class="cel-pad" x-show="tab === 'wishes'">
+            <div class="cel-pad" x-show="tab === 'wishes'" @if($isOwner) x-cloak @endif>
               {{-- wishForm() wraps the whole tab so the composer can be sticky:
                    a sticky element only travels within its own parent, so the
                    parent has to be the tall thing, not the box itself. The
@@ -1038,9 +1064,25 @@
 
             {{-- ── SETTINGS (owner) ────────────────────────────────── --}}
             @if($isOwner)
-                <div class="cel-pad" x-show="tab === 'settings'" x-cloak
+                <div class="cel-pad" x-show="tab === 'settings'"
                      x-data="celebrationSettings({{ Js::from($settings) }})">
 
+                    {{-- Photos first: a page without one is the first thing to fix. --}}
+                    <div class="cel-sec">
+                        <p class="cel-sec-t">Photos</p>
+                        <div class="set-photos">
+                            <label for="coverUpload" class="set-add" title="Add photos">
+                                <i class="mdi mdi-camera-plus-outline"></i>
+                            </label>
+                            @foreach($coverPhotos as $photo)
+                                <div class="set-photo"><img src="{{ asset('storage/'.$photo) }}" alt=""></div>
+                            @endforeach
+                        </div>
+                        <input type="file" id="coverUpload" class="hidden" accept="image/*" multiple>
+                        <p class="set-hint">Up to 4 photos, {{ \App\Support\UploadLimits::label() }} each.</p>
+                    </div>
+
+                    <div class="cel-sec">
                     <p class="cel-sec-t">Page details</p>
 
                     <div class="set-field">
@@ -1065,8 +1107,9 @@
                             </select>
                         </div>
                         <div>
-                            <label class="set-label">Date</label>
-                            <input type="date" class="input" x-model="form.event_date">
+                            <label class="set-label" for="set-event-date">Celebration date</label>
+                            <input id="set-event-date" type="text" class="input datepicker" x-model="form.event_date"
+                                   placeholder="Pick the day" autocomplete="off">
                         </div>
                     </div>
                     <div class="set-field">
@@ -1102,6 +1145,7 @@
                         </span>
                         <span x-show="error" x-cloak class="badge badge-danger" x-text="error"></span>
                     </div>
+                    </div>
 
                     {{-- Custom URL --}}
                     <div class="cel-sec">
@@ -1109,21 +1153,8 @@
                         <x-slug-editor :celebration="$celebration" />
                     </div>
 
-                    {{-- Photos --}}
-                    <div class="cel-sec">
-                        <p class="cel-sec-t">Photos</p>
-                        <div class="set-photos">
-                            <label for="coverUpload" class="set-add" title="Add photos">
-                                <i class="mdi mdi-camera-plus-outline"></i>
-                            </label>
-                            @foreach($coverPhotos as $photo)
-                                <div class="set-photo"><img src="{{ asset('storage/'.$photo) }}" alt=""></div>
-                            @endforeach
-                        </div>
-                        <input type="file" id="coverUpload" class="hidden" accept="image/*" multiple>
-                    </div>
-
-                    {{-- Frame --}}
+                    {{-- Frame — only while the admin switch is on. --}}
+                    @if($framesEnabled ?? false)
                     <div class="cel-sec"
                          x-data="{
                             frameId: {{ $celebration->frame_id ?? 'null' }},
@@ -1159,6 +1190,8 @@
                         </div>
                     </div>
 
+                    @endif
+
                     {{-- Theme --}}
                     <div class="cel-sec">
                         <p class="cel-sec-t">Theme</p>
@@ -1174,15 +1207,45 @@
                             @endforeach
                         </div>
 
-                        <div class="set-field set-grid" style="margin-top:0.9rem">
-                            <div>
-                                <label class="set-label">Background</label>
-                                <input type="color" x-model="customBg" class="input" style="padding:0.2rem;height:38px">
+                        {{-- Colours: a wheel, a hex box and a few presets. Empty
+                             means "use the theme's colour", so the wheel shows
+                             the theme's rather than the browser's black. --}}
+                        @foreach ([
+                            'bg'   => ['label' => 'Background colour', 'model' => 'customBg',
+                                       'presets' => ['#ffffff', '#fff7ed', '#fdf2f8', '#f0f9ff', '#f0fdf4', '#fefce8', '#1f2937', '#0f172a']],
+                            'text' => ['label' => 'Text colour',       'model' => 'customText',
+                                       'presets' => ['#111827', '#374151', '#ffffff', '#7c2d12', '#831843', '#1e3a8a', '#14532d', '#581c87']],
+                        ] as $which => $colour)
+                            <div class="set-field set-colour" style="margin-top:0.9rem">
+                                <label class="set-label" for="set-colour-{{ $which }}">{{ $colour['label'] }}</label>
+                                <div class="set-colour-row">
+                                    <label class="set-colour-wheel" :style="`background:${pickerValue('{{ $which }}')}`" title="Open the colour picker">
+                                        <input type="color" :value="pickerValue('{{ $which }}')"
+                                               @input="setColour('{{ $which }}', $event.target.value)"
+                                               aria-label="{{ $colour['label'] }} picker">
+                                    </label>
+                                    <input id="set-colour-{{ $which }}" type="text" class="input set-colour-hex"
+                                           maxlength="7" spellcheck="false" autocomplete="off" placeholder="Theme default"
+                                           :value="{{ $colour['model'] }}"
+                                           @change="setColour('{{ $which }}', $event.target.value) || ($event.target.value = {{ $colour['model'] }})">
+                                    <button type="button" class="btn btn-outline btn-sm" x-show="{{ $colour['model'] }}" x-cloak
+                                            @click="setColour('{{ $which }}', '')" title="Use the theme's colour">
+                                        <i class="mdi mdi-restore"></i> Theme
+                                    </button>
+                                </div>
+                                <div class="set-colour-presets">
+                                    @foreach ($colour['presets'] as $hex)
+                                        <button type="button" class="set-colour-chip" style="background:{{ $hex }}"
+                                                :aria-pressed="{{ $colour['model'] }} === '{{ $hex }}'"
+                                                @click="setColour('{{ $which }}', '{{ $hex }}')"
+                                                title="{{ $hex }}" aria-label="{{ $colour['label'] }} {{ $hex }}"></button>
+                                    @endforeach
+                                </div>
                             </div>
-                            <div>
-                                <label class="set-label">Text</label>
-                                <input type="color" x-model="customText" class="input" style="padding:0.2rem;height:38px">
-                            </div>
+                        @endforeach
+
+                        <div class="set-colour-preview" :style="`background:${pickerValue('bg')};color:${pickerValue('text')}`">
+                            <strong>Aa</strong><span>This is how wishes will read on your page.</span>
                         </div>
 
                         <div style="display:flex;align-items:center;gap:0.6rem;margin-top:0.9rem">

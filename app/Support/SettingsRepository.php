@@ -114,6 +114,18 @@ class SettingsRepository
                 'help'   => 'Assumed when an address cannot be placed. Clear it to fall through to the base currency.',
             ],
         ],
+
+        'features' => [
+            'frames_enabled' => [
+                'label'     => 'Photo frames',
+                'config'    => 'features.frames',
+                'type'      => 'toggle',
+                'default'   => false,
+                'on_label'  => 'On — celebrants can pick a frame',
+                'off_label' => 'Off — the frame picker is hidden',
+                'help'      => 'Shows the Frame section in a celebrant\'s page settings. Frames already chosen stay on their pages either way.',
+            ],
+        ],
     ];
 
     /**

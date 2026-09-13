@@ -275,9 +275,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Credentials and currencies. These decide whether money can move at
         // all, so the permission is deliberately narrow.
         Route::middleware('admin.can:settings.manage')->group(function () {
-            Route::get('/settings/{group}',       [AdminSettingsController::class, 'edit'])->name('settings')->where('group', 'payments|mail|location');
-            Route::put('/settings/{group}',       [AdminSettingsController::class, 'update'])->name('settings.update')->where('group', 'payments|mail|location');
-            Route::post('/settings/{group}/test', [AdminSettingsController::class, 'test'])->name('settings.test')->where('group', 'payments|mail|location');
+            Route::get('/settings/{group}',       [AdminSettingsController::class, 'edit'])->name('settings')->where('group', 'payments|mail|location|features');
+            Route::put('/settings/{group}',       [AdminSettingsController::class, 'update'])->name('settings.update')->where('group', 'payments|mail|location|features');
+            Route::post('/settings/{group}/test', [AdminSettingsController::class, 'test'])->name('settings.test')->where('group', 'payments|mail|location|features');
 
             /*
             | The outbox. Sits behind settings.manage because it is mail

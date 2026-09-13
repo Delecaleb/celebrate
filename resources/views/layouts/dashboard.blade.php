@@ -965,10 +965,22 @@
                         </div>
                         <div class="m-field">
                             <label class="m-label">When is it?</label>
+                            {{-- Two date boxes side by side read as one; each gets its own name. --}}
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-                                <input type="text" class="datepicker m-input" x-model="form.startDate" placeholder="Start date">
-                                <input type="text" class="datepicker m-input" x-model="form.endDate" placeholder="End date">
+                                <div>
+                                    <label for="dash-start" style="display:block;margin-bottom:0.3rem;font-size:0.8rem;font-weight:600;color:var(--muted)">
+                                        <i class="mdi mdi-calendar-start" aria-hidden="true"></i> Starts on
+                                    </label>
+                                    <input id="dash-start" type="text" class="datepicker m-input" x-model="form.startDate" placeholder="Pick the start date">
+                                </div>
+                                <div>
+                                    <label for="dash-end" style="display:block;margin-bottom:0.3rem;font-size:0.8rem;font-weight:600;color:var(--muted)">
+                                        <i class="mdi mdi-calendar-end" aria-hidden="true"></i> Ends on <span style="font-weight:400">(optional)</span>
+                                    </label>
+                                    <input id="dash-end" type="text" class="datepicker m-input" x-model="form.endDate" placeholder="Pick the end date">
+                                </div>
                             </div>
+                            <p style="margin-top:0.4rem;font-size:0.78rem;color:var(--muted)">A one-day celebration only needs the start date.</p>
                         </div>
                         <div class="m-field">
                             <label class="m-label">Page title</label>
