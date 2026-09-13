@@ -212,7 +212,7 @@ class AdminSettingsController extends Controller
             // most misleading result this button can give.
             if (! $queue['healthy']) {
                 $message .= " Note that {$queue['stale']} real " . Str::plural('email', $queue['stale'])
-                    . ' are queued and not going out — start a worker (php artisan queue:work).';
+                    . ' are waiting in the outbox and not going out — check that the scheduler is on cron.';
             }
 
             return ['ok' => true, 'message' => $message];

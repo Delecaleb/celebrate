@@ -23,4 +23,11 @@ Schedule::command('mail:gifting-reports --period=monthly')->monthlyOn(1, '10:00'
 // Settle payments a callback or webhook never confirmed. Ten minutes is short
 // enough that nobody waits long, and long enough that a slow gateway redirect
 // has already had its chance.
+/*
+| The outbox. Everything the site sends is written to email_queues and posted
+| from here, so mail rides on the scheduler the app already needs rather than
+| on a second daemon somebody has to remember to start.
+*/
+Schedule::command('emails:send')->everyMinute()->withoutOverlapping();
+
 Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping();

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use AppSupportOutbox;
 use App\Mail\GiftingReportMail;
 use App\Models\Gift;
 use App\Models\User;
@@ -60,7 +61,7 @@ class SendGiftingReports extends Command
                 ->take(5)
                 ->values();
 
-            Mail::to($user->email)->queue(new GiftingReportMail(
+            Outbox::queue(new GiftingReportMail(
                 user:                 $user,
                 celebrationBreakdown: $breakdown,
                 topGifters:           $topGifters,
@@ -68,7 +69,12 @@ class SendGiftingReports extends Command
                 totalGiftCount:       $totalCount,
                 celebrationCount:     $celebrations->count(),
                 periodLabel:          $periodLabel,
-            ));
+            ),
+                $user->email,
+                'gifting.report',
+                ['period' => $periodLabel, 'celebrations' => $celebrations->count()],
+                $user->first_name,
+            );
 
             $sent++;
             $this->line("  Report queued for: {$user->email}");

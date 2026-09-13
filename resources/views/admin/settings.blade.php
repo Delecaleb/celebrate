@@ -29,23 +29,24 @@
         <div class="alert alert-error" style="align-items:flex-start">
             <i class="mdi mdi-timer-sand-empty"></i>
             <div>
-                <strong>{{ $queue['stale'] }} {{ Str::plural('email', $queue['stale']) }} queued and not sending.</strong>
-                Gift receipts and celebration alerts are queued, so they only go out while a worker is
-                running. The oldest has been waiting
-                {{ \Carbon\Carbon::createFromTimestamp($queue['oldest'])->diffForHumans(null, true) }}.
+                <strong>{{ $queue['stale'] }} {{ Str::plural('email', $queue['stale']) }} waiting and not going out.</strong>
+                Everything the site sends is written to the outbox and posted by the scheduler, so mail only
+                moves while <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan schedule:run</code>
+                is on cron. The oldest has been waiting
+                {{ \Illuminate\Support\Carbon::parse($queue['oldest'])->diffForHumans(null, true) }}.
                 <br>
-                Start one on the server with <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan queue:work --tries=3</code>
-                and keep it alive with supervisor — see DEPLOY.md.
+                <a href="{{ route('admin.outbox') }}">Open the outbox</a> to read them, or send now with
+                <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan emails:send</code>.
                 @if ($queue['failed'] > 0)
-                    <br>{{ $queue['failed'] }} {{ Str::plural('job', $queue['failed']) }} also failed outright:
-                    <code style="background:rgba(0,0,0,.06);padding:.1rem .3rem">php artisan queue:failed</code>
+                    <br>{{ $queue['failed'] }} {{ Str::plural('email', $queue['failed']) }} gave up after retrying —
+                    the outbox shows what the server said.
                 @endif
             </div>
         </div>
     @elseif ($queue && $queue['driver'] === 'database' && $queue['pending'] > 0)
         <div class="alert alert-success">
             <i class="mdi mdi-check-circle"></i>
-            A worker is keeping up — {{ $queue['pending'] }} {{ Str::plural('email', $queue['pending']) }} in flight.
+            The outbox is moving — {{ $queue['pending'] }} {{ Str::plural('email', $queue['pending']) }} waiting to go.
         </div>
     @endif
 

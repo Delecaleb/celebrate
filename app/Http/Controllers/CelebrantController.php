@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use AppSupportOutbox;
 use App\Http\Controllers\Controller;
 use App\Models\BulkCelebrant;
 use App\Models\User;
@@ -108,7 +109,13 @@ class CelebrantController extends Controller
         }
 
         if ($sendEmail) {
-            Mail::to($user->email)->send(new CelebrantImportFinished($processed, $errors));
+            Outbox::queue(
+                new CelebrantImportFinished($processed, $errors),
+                $user->email,
+                'celebrant.import',
+                ['processed' => $processed, 'skipped' => count($errors)],
+                $user->first_name,
+            );
         }
 
         return redirect()->back()->with('status', "Import completed. {$processed} rows added. " . count($errors) . " errors.");

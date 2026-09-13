@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use AppSupportOutbox;
 use App\Http\Controllers\Controller;
 use App\Mail\GiftReceivedMail;
 use App\Models\Gift;
@@ -269,13 +270,13 @@ class GiftController extends Controller
             return;
         }
 
-        try {
-            Mail::to($celebration->user->email)->queue(
-                new GiftReceivedMail($gift->load('platformGift'), $celebration)
-            );
-        } catch (\Throwable $e) {
-            Log::warning('Gift received mail failed to queue', ['gift' => $gift->id, 'error' => $e->getMessage()]);
-        }
+        Outbox::queue(
+            new GiftReceivedMail($gift->load('platformGift'), $celebration),
+            $celebration->user->email,
+            'gift.received',
+            ['celebration_id' => $celebration->id, 'gift_ids' => [$gift->id]],
+            $celebration->user->first_name,
+        );
     }
 
     private function paystackPaid(string $reference): bool
