@@ -16,7 +16,7 @@
     "src": "node_modules/@mdi/font/fonts/materialdesignicons-webfont.woff2"
   },
   "node_modules/canvg/lib/index.es.js": {
-    "file": "assets/index.es-DuGO-YgD.js",
+    "file": "assets/index.es-BYCzyDUZ.js",
     "name": "index.es",
     "src": "node_modules/canvg/lib/index.es.js",
     "isDynamicEntry": true,
@@ -46,7 +46,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-CLm3sBf_.js",
+    "file": "assets/app-XG0vmvSp.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

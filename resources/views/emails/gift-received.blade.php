@@ -72,12 +72,14 @@
            style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 16px 20px; margin-bottom: 28px;">
         <tr>
             <td>
-                <p style="margin: 0 0 4px 0; font-size: 13px; color: #6B7280;">Total gifts received for this celebration</p>
+                <p style="margin: 0 0 4px 0; font-size: 13px; color: #6B7280;">Total received for this celebration</p>
+                {{-- Already converted into the celebrant's currency and labelled
+                     with it — never a raw sum of mixed currencies. --}}
                 <p style="margin: 0; font-size: 24px; font-weight: 800; color: #059669;">
-                    ${{ number_format($totalReceived, 2) }} USD
+                    {{ $totalReceived }}
                 </p>
                 <p style="margin: 4px 0 0 0; font-size: 12px; color: #6B7280;">
-                    from {{ $giftCount }} {{ Str::plural('gift', $giftCount) }}
+                    from {{ $giftCount }} {{ Str::plural('gift', $giftCount) }}@if ($contributionCount > 0) and {{ $contributionCount }} registry {{ Str::plural('contribution', $contributionCount) }}@endif
                 </p>
             </td>
         </tr>

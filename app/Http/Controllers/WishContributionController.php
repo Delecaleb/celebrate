@@ -108,6 +108,8 @@ class WishContributionController extends Controller
         $wish->increment('current_amount', $incrementAmount);
         $wish->increment('contribution_count');
 
+        \App\Mail\ContributionReceivedMail::notifyCelebrant($contribution);
+
         $newBalanceDisplay = $this->wallet->balance($user, $walletType);
         $symbol            = config("currency.currencies.{$visitorCurrency}.symbol", $visitorCurrency);
 

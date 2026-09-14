@@ -60,8 +60,8 @@ final class GiftLines
         return $name === '' ? null : explode(' ', $name)[0];
     }
 
-    /** A naira gift is not a dollar figure. */
-    private static function money(float $amount, ?string $currency): string
+    /** A naira gift is not a dollar figure. "₦8,000.00 NGN", "$25.00 USD". */
+    public static function money(float $amount, ?string $currency): string
     {
         $code     = strtoupper($currency ?: (string) config('currency.base'));
         $symbol   = config("currency.currencies.{$code}.symbol", '');

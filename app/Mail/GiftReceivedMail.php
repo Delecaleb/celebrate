@@ -25,7 +25,10 @@ class GiftReceivedMail extends Mailable
     public Collection $gifts;
 
     public int $giftCount;
-    public float $totalReceived;
+    public int $contributionCount;
+
+    /** Formatted in the celebrant's currency, e.g. "₦48,000.00 NGN". */
+    public string $totalReceived;
 
     public function __construct(
         Gift|Collection $gifts,
@@ -33,9 +36,10 @@ class GiftReceivedMail extends Mailable
     ) {
         $this->gifts = GiftLines::normalise($gifts);
 
-        $paidGifts           = $celebration->gifts()->where('payment_status', 'paid')->get();
-        $this->giftCount     = (int) $paidGifts->sum(fn (Gift $gift) => max(1, (int) $gift->quantity));
-        $this->totalReceived = (float) $paidGifts->sum('amount');
+        $totals                  = CelebrationTotals::received($celebration);
+        $this->giftCount         = $totals['gifts'];
+        $this->contributionCount = $totals['contributions'];
+        $this->totalReceived     = $totals['amount'];
     }
 
     public function envelope(): Envelope
@@ -60,8 +64,9 @@ class GiftReceivedMail extends Mailable
                 'lines'          => GiftLines::lines($this->gifts),
                 'basketTotal'    => GiftLines::total($this->gifts),
                 'celebration'    => $this->celebration,
-                'giftCount'      => $this->giftCount,
-                'totalReceived'  => $this->totalReceived,
+                'giftCount'         => $this->giftCount,
+                'contributionCount' => $this->contributionCount,
+                'totalReceived'     => $this->totalReceived,
             ],
         );
     }

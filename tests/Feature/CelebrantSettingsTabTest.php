@@ -86,7 +86,7 @@ class CelebrantSettingsTabTest extends TestCase
 
         $this->assertLessThan(
             strpos($html, '<p class="cel-sec-t">Page details</p>'),
-            strpos($html, '<p class="cel-sec-t">Photos</p>')
+            strpos($html, '<p class="cel-sec-t">Cover photos</p>')
         );
     }
 

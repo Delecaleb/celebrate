@@ -8,9 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (this.files.length === 0) return;
 
-        // Check maximum files limit
-        if (this.files.length > 4) {
-            alert('You can only select up to 4 images.');
+        // New photos join the ones already on the page, and a page holds at
+        // most four — so count what is there, not just what was picked.
+        const maxPhotos = window.CelebrationConfig?.coverMax ?? 4;
+        const existing  = window.CelebrationConfig?.coverCount ?? 0;
+        const room      = Math.max(0, maxPhotos - existing);
+
+        if (this.files.length > room) {
+            alert(room === 0
+                ? `You already have ${maxPhotos} cover photos. Remove one before adding another.`
+                : `You can add ${room} more photo${room === 1 ? '' : 's'} — a page has at most ${maxPhotos}.`);
             this.value = ''; // clear selection
             return;
         }

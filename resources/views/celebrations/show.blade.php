@@ -374,6 +374,62 @@
     .set-add:hover { border-color: var(--primary); color: var(--primary); }
     .set-hint { margin-top: 0.5rem; font-size: 0.76rem; color: var(--muted); }
 
+    /* empty cover, for the owner — the placeholder is the add button.
+       Stacked above the frame overlay (z 4) so it stays clickable. */
+    .cel-cover-empty {
+        position: relative; z-index: 5;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 0.45rem; width: 100%; height: 100%; padding: 1.5rem;
+        background: var(--ink-800); color: #fff; text-align: center; cursor: pointer;
+    }
+    .cel-cover-empty-icon {
+        display: flex; align-items: center; justify-content: center;
+        width: 76px; height: 76px; border-radius: 999px;
+        border: 2px dashed rgba(255,255,255,.35); background: rgba(255,255,255,.06);
+        font-size: 2.4rem; color: rgba(255,255,255,.8);
+        transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .cel-cover-empty-t { margin-top: 0.35rem; font-size: 1rem; font-weight: 800; letter-spacing: 0.01em; }
+    .cel-cover-empty-s { font-size: 0.78rem; color: rgba(255,255,255,.6); }
+    .cel-cover-empty:hover .cel-cover-empty-icon {
+        transform: scale(1.05); border-color: var(--primary); background: rgba(255,255,255,.12); color: #fff;
+    }
+
+    /* settings — the add-cover card */
+    .set-cover-cta {
+        display: flex; align-items: center; gap: 0.85rem;
+        padding: 0.9rem 1rem; border-radius: 14px; cursor: pointer;
+        border: 2px dashed var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent);
+        transition: background .15s ease, transform .15s ease;
+    }
+    .set-cover-cta:hover { background: color-mix(in srgb, var(--primary) 14%, transparent); transform: translateY(-1px); }
+    .set-cover-cta-icon {
+        flex: none; display: flex; align-items: center; justify-content: center;
+        width: 46px; height: 46px; border-radius: 12px;
+        background: var(--primary); color: #fff; font-size: 1.5rem;
+    }
+    .set-cover-cta-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+    .set-cover-cta-t { font-size: 0.95rem; font-weight: 800; color: var(--primary); }
+    .set-cover-cta-s { font-size: 0.76rem; color: var(--muted); }
+    .set-cover-cta-go { font-size: 1.3rem; color: var(--primary); }
+
+    /* settings — each photo, with its remove button */
+    .set-photo { border-radius: 10px; }
+    .set-photo.is-removing img { opacity: .45; }
+    .set-photo-badge {
+        position: absolute; left: 5px; bottom: 5px;
+        padding: 1px 7px; border-radius: 999px;
+        background: rgba(0,0,0,.6); color: #fff; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.04em;
+    }
+    .set-photo-del {
+        position: absolute; top: 5px; right: 5px;
+        display: flex; align-items: center; justify-content: center;
+        width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+        background: rgba(0,0,0,.62); color: #fff; font-size: 0.95rem;
+    }
+    .set-photo-del:hover { background: var(--danger, #dc2626); }
+    .set-photo-del:disabled { cursor: default; opacity: .7; }
+
     /* colour pickers — wheel, hex box, presets */
     .set-colour-row { display: flex; align-items: center; gap: 0.5rem; }
     .set-colour-wheel {
@@ -569,6 +625,15 @@
             </div>
         @elseif(count($coverPhotos) === 1)
             <img src="{{ asset('storage/'.$coverPhotos[0]) }}" alt="">
+        @elseif($isOwner)
+            {{-- An empty cover is the first thing the owner should fix, so for
+                 them the placeholder is the button: it opens the same picker
+                 as Settings → Photos. --}}
+            <label for="coverUpload" class="cel-cover-empty" title="Add a cover image">
+                <span class="cel-cover-empty-icon"><i class="mdi mdi-image-plus-outline"></i></span>
+                <span class="cel-cover-empty-t">Add Cover Image</span>
+                <span class="cel-cover-empty-s">Up to 4 photos, {{ \App\Support\UploadLimits::label() }} each</span>
+            </label>
         @else
             <div class="w-full h-full flex items-center justify-center" style="background: var(--ink-800)">
                 <i class="mdi mdi-image-outline" style="font-size:3rem;color:rgba(255,255,255,.22)"></i>
@@ -1067,19 +1132,65 @@
                 <div class="cel-pad" x-show="tab === 'settings'"
                      x-data="celebrationSettings({{ Js::from($settings) }})">
 
-                    {{-- Photos first: a page without one is the first thing to fix. --}}
-                    <div class="cel-sec">
-                        <p class="cel-sec-t">Photos</p>
-                        <div class="set-photos">
-                            <label for="coverUpload" class="set-add" title="Add photos">
-                                <i class="mdi mdi-camera-plus-outline"></i>
+                    {{-- Cover photos first: a page without one is the first thing to fix. --}}
+                    <div class="cel-sec"
+                         x-data="{
+                            removing: null,
+                            async removeCover(path) {
+                                if (! confirm('Remove this cover photo? It will disappear from your page.')) return;
+                                this.removing = path;
+                                try {
+                                    const res = await fetch('{{ route('celebrant.delete-cover', $celebration->id) }}', {
+                                        method: 'DELETE',
+                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                                        body: JSON.stringify({ path }),
+                                    });
+                                    const data = await res.json().catch(() => ({}));
+                                    if (res.ok && data.success) { window.location.reload(); return; }
+                                    window.showAlert?.(data.message || 'Could not remove the photo.', 'error');
+                                } catch (e) {
+                                    window.showAlert?.('Something went wrong', 'error');
+                                }
+                                this.removing = null;
+                            }
+                         }">
+                        <p class="cel-sec-t">Cover photos</p>
+
+                        {{-- The add button is the loudest thing in Settings until the
+                             page is full — a small dashed square was easy to miss. --}}
+                        @if(count($coverPhotos) < 4)
+                            <label for="coverUpload" class="set-cover-cta">
+                                <span class="set-cover-cta-icon"><i class="mdi mdi-image-plus-outline"></i></span>
+                                <span class="set-cover-cta-body">
+                                    <span class="set-cover-cta-t">{{ count($coverPhotos) ? 'Add another cover image' : 'Add Cover Image' }}</span>
+                                    <span class="set-cover-cta-s">Up to {{ \App\Support\UploadLimits::label() }} each · {{ count($coverPhotos) }} of 4 used</span>
+                                </span>
+                                <i class="mdi mdi-chevron-right set-cover-cta-go"></i>
                             </label>
-                            @foreach($coverPhotos as $photo)
-                                <div class="set-photo"><img src="{{ asset('storage/'.$photo) }}" alt=""></div>
-                            @endforeach
-                        </div>
+                        @else
+                            <p class="set-hint" style="margin-top:0">4 of 4 cover photos — the most a page can hold. Remove one to add another.</p>
+                        @endif
+
+                        @if(count($coverPhotos))
+                            <div class="set-photos" style="margin-top:0.75rem">
+                                @foreach($coverPhotos as $photo)
+                                    <div class="set-photo" :class="removing === '{{ $photo }}' && 'is-removing'">
+                                        <img src="{{ asset('storage/'.$photo) }}" alt="Cover photo {{ $loop->iteration }}">
+                                        @if($loop->first)
+                                            <span class="set-photo-badge">Main</span>
+                                        @endif
+                                        <button type="button" class="set-photo-del"
+                                                @click="removeCover('{{ $photo }}')"
+                                                :disabled="removing !== null"
+                                                aria-label="Remove cover photo {{ $loop->iteration }}" title="Remove photo">
+                                            <i class="mdi" :class="removing === '{{ $photo }}' ? 'mdi-loading mdi-spin' : 'mdi-trash-can-outline'"></i>
+                                        </button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
                         <input type="file" id="coverUpload" class="hidden" accept="image/*" multiple>
-                        <p class="set-hint">Up to 4 photos, {{ \App\Support\UploadLimits::label() }} each.</p>
                     </div>
 
                     <div class="cel-sec">
@@ -1376,6 +1487,9 @@ $photoBookComments = $celebration->comments
         // uploading. Same number the server validates against.
         imageMaxBytes:   {{ \App\Support\UploadLimits::bytes() }},
         imageMaxLabel:   "{{ \App\Support\UploadLimits::label() }}",
+        // New cover photos join the existing ones, up to the page's limit.
+        coverCount:      {{ count($coverPhotos) }},
+        coverMax:        4,
         photobook: {
             title:           @json($celebration->title),
             celebrantName:   @json($celebration->celebrant_name ?? ''),

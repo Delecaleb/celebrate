@@ -167,7 +167,7 @@ class WishController extends Controller
 
         $reference = 'wish-wallet-'.Str::uuid();
 
-        DB::transaction(function () use ($wish, $user, $amount, $currency, $data, $reference, $walletType) {
+        $contribution = DB::transaction(function () use ($wish, $user, $amount, $currency, $data, $reference, $walletType) {
             $contribution = WishContribution::create([
                 'wish_id'             => $wish->id,
                 'celebration_id'      => $wish->celebration_id,
@@ -197,7 +197,11 @@ class WishController extends Controller
             );
 
             $this->settle($contribution, $walletType);
+
+            return $contribution;
         });
+
+        \App\Mail\ContributionReceivedMail::notifyCelebrant($contribution);
 
         return response()->json([
             'message' => 'Thank you! Your contribution has been recorded.',
@@ -334,6 +338,8 @@ class WishController extends Controller
                 strtoupper($contribution->currency) === 'USD' ? 'global' : 'local'
             );
         });
+
+        \App\Mail\ContributionReceivedMail::notifyCelebrant($contribution->fresh());
 
         return response()->json([
             'status'  => 'credited',

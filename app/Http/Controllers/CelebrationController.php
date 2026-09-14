@@ -62,8 +62,15 @@ class CelebrationController extends Controller
 
                 if (!Hash::check($request->password, $user->password)) {
 
+                    // The form reads as sign-up, so "invalid credentials" left
+                    // people stuck: they did not know the address already had an
+                    // account. Say so, on the email field, and what to do next.
                     return response()->json([
-                        'message' => 'Invalid login credentials'
+                        'message' => 'This email is already registered. Enter its password to continue, or sign in instead.',
+                        'code'    => 'email_taken',
+                        'errors'  => [
+                            'email' => ['An account with this email already exists. Enter that account\'s password, or sign in instead.'],
+                        ],
                     ], 422);
                 }
 
@@ -540,42 +547,50 @@ public function updateCoverPhoto(Request $request, $id)
 
         if ($request->hasFile('cover_photos')) {
             $request->validate([
-                'cover_photos' => ['required', 'array', 'max:4'],
+                'cover_photos' => ['required', 'array', 'max:' . self::MAX_COVER_PHOTOS],
                 'cover_photos.*' => ['image', \App\Support\UploadLimits::imageRule()]
             ], [
                 'cover_photos.*.max' => $tooBig,
             ]);
 
-            $paths = [];
-            foreach ($request->file('cover_photos') as $file) {
-                $paths[] = $file->store('covers', 'public');
-            }
-
-            $celebration->cover_photo = json_encode($paths);
-            $celebration->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Cover photos updated successfully',
-                'cover_urls' => array_map(fn($p) => asset('storage/' . $p), $paths)
+            $files = $request->file('cover_photos');
+        } else {
+            $request->validate([
+                'cover_photo' => ['required', 'image', \App\Support\UploadLimits::imageRule()]
+            ], [
+                'cover_photo.max' => $tooBig,
             ]);
+
+            $files = [$request->file('cover_photo')];
         }
 
-        $request->validate([
-            'cover_photo' => ['required', 'image', \App\Support\UploadLimits::imageRule()]
-        ], [
-            'cover_photo.max' => $tooBig,
-        ]);
+        // New photos join the set rather than replace it. Photos can be removed
+        // one at a time from Settings now, so adding one must not wipe the rest.
+        $existing = $celebration->cover_photos;
 
-        $path = $request->file('cover_photo')->store('covers', 'public');
+        if (count($existing) + count($files) > self::MAX_COVER_PHOTOS) {
+            $room = max(0, self::MAX_COVER_PHOTOS - count($existing));
 
-        $celebration->cover_photo = $path;
-        $celebration->save();
+            return response()->json([
+                'success' => false,
+                'message' => $room === 0
+                    ? 'You already have ' . self::MAX_COVER_PHOTOS . ' cover photos. Remove one before adding another.'
+                    : 'You can add ' . $room . ' more ' . \Illuminate\Support\Str::plural('photo', $room) . ' — a page has at most ' . self::MAX_COVER_PHOTOS . '.',
+            ], 422);
+        }
+
+        $paths = [];
+        foreach ($files as $file) {
+            $paths[] = $file->store('covers', 'public');
+        }
+
+        $this->saveCoverPhotos($celebration, array_merge($existing, $paths));
 
         return response()->json([
-            'success' => true,
-            'message' => 'Cover photo updated successfully',
-            'cover_url' => asset('storage/' . $path)
+            'success'    => true,
+            'message'    => count($paths) > 1 ? 'Cover photos added' : 'Cover photo added',
+            'cover_url'  => asset('storage/' . $paths[0]),
+            'cover_urls' => array_map(fn ($p) => asset('storage/' . $p), $celebration->cover_photos),
         ]);
 
     } catch (\Illuminate\Validation\ValidationException $e) {
@@ -594,6 +609,68 @@ public function updateCoverPhoto(Request $request, $id)
             'message' => 'Unable to update cover photo right now.'
         ], 500);
     }
+}
+
+/** How many cover photos one page can hold. */
+private const MAX_COVER_PHOTOS = 4;
+
+/**
+ * Store a celebration's cover photos.
+ *
+ * One photo is kept as a plain path and several as a JSON list — the two shapes
+ * Celebration::getCoverPhotosAttribute reads back. None is null.
+ *
+ * @param  array<int, string>  $paths
+ */
+private function saveCoverPhotos(Celebration $celebration, array $paths): void
+{
+    $paths = array_values($paths);
+
+    $celebration->cover_photo = match (count($paths)) {
+        0       => null,
+        1       => $paths[0],
+        default => json_encode($paths),
+    };
+
+    $celebration->save();
+}
+
+/**
+ * Remove one cover photo from Settings.
+ */
+public function deleteCoverPhoto(Request $request, $id)
+{
+    $celebration = Celebration::findOrFail($id);
+
+    if (Auth::id() !== $celebration->user_id) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    $request->validate(['path' => ['required', 'string']]);
+
+    $path   = $request->input('path');
+    $photos = $celebration->cover_photos;
+
+    if (! in_array($path, $photos, true)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'That photo is no longer on this page.',
+        ], 404);
+    }
+
+    $this->saveCoverPhotos($celebration, array_filter($photos, fn ($photo) => $photo !== $path));
+
+    // Only a path that was on this page, and only from the covers folder — it
+    // arrived in the request, so it is never trusted to point anywhere else.
+    if (str_starts_with($path, 'covers/')) {
+        \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+    }
+
+    return response()->json([
+        'success'   => true,
+        'message'   => 'Cover photo removed',
+        'remaining' => count($celebration->cover_photos),
+    ]);
 }
 
 public function updateFrame(Request $request, $id)

@@ -232,6 +232,20 @@
                     <span class="pip" :class="step >= 2 && 'is-on'">2</span>
                 </div>
 
+                {{-- Whatever the server refused, said out loud. The form used to
+                     drop every error response, so a taken email or a missing
+                     date just left people sitting on the form. --}}
+                <div x-show="message" x-cloak role="alert"
+                     style="display:flex;gap:0.6rem;align-items:flex-start;margin-bottom:1.1rem;padding:0.8rem 0.95rem;border-radius:12px;border:1px solid var(--danger);color:var(--danger);font-size:0.88rem;line-height:1.45">
+                    <i class="mdi mdi-alert-circle-outline" style="font-size:1.1rem;line-height:1.2"></i>
+                    <div>
+                        <span x-text="message"></span>
+                        <template x-if="code === 'email_taken'">
+                            <span> <a href="{{ route('login') }}" style="color:inherit;font-weight:700;text-decoration:underline">Sign in</a></span>
+                        </template>
+                    </div>
+                </div>
+
                 {{-- STEP 1 --}}
                 <div x-show="step === 1" x-transition>
                     <div class="field">
@@ -295,16 +309,23 @@
 
                     <div class="field">
                         <label class="field-label" for="ce-email">Email address</label>
-                        <input id="ce-email" type="email" class="input" x-model="auth.email" placeholder="you@example.com">
+                        <input id="ce-email" type="email" class="input" x-model="auth.email" placeholder="you@example.com"
+                               @input="errors.email = ''" :aria-invalid="!!errors.email"
+                               :style="errors.email ? 'border-color: var(--danger)' : ''">
+                        <p class="field-error" x-show="errors.email" x-cloak x-text="errors.email"></p>
                     </div>
 
                     <div class="field">
                         <label class="field-label" for="ce-pass">Password</label>
-                        <input id="ce-pass" type="password" class="input" x-model="auth.password" placeholder="Create a password">
+                        <input id="ce-pass" type="password" class="input" x-model="auth.password" placeholder="Create a password"
+                               @input="errors.password = ''" :aria-invalid="!!errors.password"
+                               :style="errors.password ? 'border-color: var(--danger)' : ''">
+                        <p class="field-error" x-show="errors.password" x-cloak x-text="errors.password"></p>
                     </div>
 
-                    <button type="button" @click="submitForm" class="btn btn-primary btn-block">
-                        <i class="mdi mdi-party-popper"></i> Create my celebration
+                    <button type="button" @click="submitForm" class="btn btn-primary btn-block" :disabled="submitting">
+                        <i class="mdi" :class="submitting ? 'mdi-loading mdi-spin' : 'mdi-party-popper'"></i>
+                        <span x-text="submitting ? 'Creating…' : 'Create my celebration'"></span>
                     </button>
 
                     <p class="sheet-alt">
@@ -340,6 +361,13 @@
             form: { celebrantName: '', eventType: '', startDate: '', endDate: '', eventTitle: '' },
             auth: { email: '', password: '' },
 
+            // What the server refused: per-field messages for step 2, a line for
+            // the banner, and a code the banner uses to offer a sign-in link.
+            errors: { email: '', password: '' },
+            message: '',
+            code: '',
+            submitting: false,
+
             init() {
                 this.$watch('form.celebrantName', () => this.generateTitle());
                 this.$watch('form.eventType',     () => this.generateTitle());
@@ -374,17 +402,60 @@
             },
 
             async submitForm() {
-                const response = await fetch('/create-celebration', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({ ...this.form, ...this.auth })
-                });
+                if (this.submitting) return;
 
-                const data = await response.json();
-                if (data.redirect) window.location.href = data.redirect;
+                this.submitting = true;
+                this.message    = '';
+                this.code       = '';
+                this.errors     = { email: '', password: '' };
+
+                try {
+                    const response = await fetch('/create-celebration', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Without this a refused request comes back as a
+                            // redirect to an HTML page that cannot be read.
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({ ...this.form, ...this.auth })
+                    });
+
+                    const data = await response.json().catch(() => ({}));
+
+                    if (response.ok && data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+
+                    const fieldErrors = data.errors || {};
+
+                    this.errors.email    = fieldErrors.email?.[0] || '';
+                    this.errors.password = fieldErrors.password?.[0] || '';
+                    this.code            = data.code || '';
+
+                    // A problem with the details belongs on step 1 — send the
+                    // person back to where they can fix it.
+                    const detailError = ['celebrantName', 'eventType', 'startDate', 'endDate', 'eventTitle']
+                        .map((field) => fieldErrors[field]?.[0])
+                        .find(Boolean);
+
+                    if (detailError) {
+                        this.step    = 1;
+                        this.message = detailError;
+                        return;
+                    }
+
+                    this.message = data.message
+                        || (response.status === 419
+                            ? 'Your session expired. Refresh the page and try again.'
+                            : 'We could not create your celebration. Please try again.');
+                } catch (e) {
+                    this.message = 'We could not reach the server. Check your connection and try again.';
+                } finally {
+                    this.submitting = false;
+                }
             }
         }
     }

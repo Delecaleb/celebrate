@@ -2,6 +2,7 @@
 
 namespace App\Services\PaymentSystem;
 
+use App\Mail\ContributionReceivedMail;
 use App\Mail\GiftReceivedMail;
 use App\Mail\GiftSentMail;
 use App\Support\Outbox;
@@ -183,17 +184,17 @@ class PaymentFulfilmentService
 
     public function fulfilWishContribution(string $reference): string
     {
-        return DB::transaction(function () use ($reference) {
+        [$status, $contribution] = DB::transaction(function () use ($reference) {
             $contribution = WishContribution::where('payment_reference', $reference)
                 ->lockForUpdate()
                 ->first();
 
             if (! $contribution) {
-                return self::MISSING;
+                return [self::MISSING, null];
             }
 
             if ($contribution->payment_status === 'paid') {
-                return self::ALREADY;
+                return [self::ALREADY, null];
             }
 
             $contribution->update(['payment_status' => 'paid']);
@@ -236,8 +237,16 @@ class PaymentFulfilmentService
                 'contribution_id' => $contribution->id,
             ]);
 
-            return self::DONE;
+            return [self::DONE, $contribution];
         });
+
+        // After the commit, as for gifts. Only the call that actually settled
+        // it gets here, so a webhook and a callback racing send one mail.
+        if ($status === self::DONE && $contribution) {
+            ContributionReceivedMail::notifyCelebrant($contribution);
+        }
+
+        return $status;
     }
 
     /**
