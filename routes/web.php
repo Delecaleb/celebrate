@@ -290,6 +290,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/outbox/{email}/preview',  [AdminOutboxController::class, 'preview'])->name('outbox.preview');
             Route::post('/outbox/{email}/retry',   [AdminOutboxController::class, 'retry'])->name('outbox.retry');
             Route::post('/outbox/{email}/hold',    [AdminOutboxController::class, 'hold'])->name('outbox.hold');
+            Route::post('/outbox/{email}/send-now', [AdminOutboxController::class, 'sendNow'])->name('outbox.send-now');
+            // Not /outbox/{email}/... — this one acts on the whole queue.
+            Route::post('/outbox-send-pending',     [AdminOutboxController::class, 'sendPending'])->name('outbox.send-pending');
 
             Route::get('/currencies',               [AdminCurrencyController::class, 'index'])->name('currencies');
             Route::post('/currencies',              [AdminCurrencyController::class, 'store'])->name('currencies.store');

@@ -68,9 +68,18 @@
 
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:1.5rem">
             @if ($email->status !== 'sent')
-                <form method="POST" action="{{ route('admin.outbox.retry', $email) }}">
+                {{-- The one people actually want: out the door now, not on the
+                     scheduler's next minute. --}}
+                <form method="POST" action="{{ route('admin.outbox.send-now', $email) }}">
                     @csrf
                     <button type="submit" class="btn-create-lg">
+                        <i class="mdi mdi-send"></i> Send now
+                    </button>
+                </form>
+
+                <form method="POST" action="{{ route('admin.outbox.retry', $email) }}">
+                    @csrf
+                    <button type="submit" class="btn-filter">
                         <i class="mdi mdi-refresh"></i> Try again
                     </button>
                 </form>

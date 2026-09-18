@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\EmailQueue;
+use App\Support\OutboxSender;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * Every email the site has tried to send.
@@ -17,6 +19,9 @@ use Illuminate\Http\Request;
  */
 class AdminOutboxController extends Controller
 {
+    /** How many an admin can push out in one click, so a request cannot hang. */
+    private const SEND_NOW_LIMIT = 25;
+
     public function index(Request $request)
     {
         $emails = EmailQueue::query()
@@ -37,6 +42,8 @@ class AdminOutboxController extends Controller
                 ->groupBy('status')
                 ->pluck('total', 'status'),
             'types'  => EmailQueue::select('type')->distinct()->orderBy('type')->pluck('type'),
+            // What "Send all waiting" would actually attempt right now.
+            'due'    => EmailQueue::due()->count(),
         ]);
     }
 
@@ -77,6 +84,60 @@ class AdminOutboxController extends Controller
         );
 
         return back()->with('success', 'Back in the queue. It goes out on the next pass, within a minute.');
+    }
+
+    /**
+     * Send one email this second, rather than waiting for the scheduler.
+     *
+     * Same code path as the cron pass, so it is claimed, recorded and retried
+     * on failure exactly as an automatic send would be.
+     */
+    public function sendNow(EmailQueue $email, OutboxSender $sender)
+    {
+        $outcome = $sender->sendNow($email);
+
+        AdminAuditLog::record(
+            'admin.email.sent-now',
+            "Sent {$email->type} to {$email->to_address} by hand: " . ($outcome['ok'] ? 'delivered' : 'failed'),
+            $email,
+            $email->uuid,
+        );
+
+        if (! $outcome['ok']) {
+            return back()->with('error', 'Could not send it: ' . Str::limit((string) $outcome['error'], 160));
+        }
+
+        return back()->with('success', "Sent to {$email->to_address}.");
+    }
+
+    /**
+     * Push out everything that is waiting, without waiting for cron.
+     *
+     * Capped per click: this runs inside the request, and a page that hangs
+     * while a hundred emails crawl through SMTP is worse than two clicks.
+     */
+    public function sendPending(OutboxSender $sender)
+    {
+        $outcome = $sender->sendDue(self::SEND_NOW_LIMIT);
+
+        if ($outcome['results'] === []) {
+            return back()->with('success', 'Nothing was waiting — the outbox is clear.');
+        }
+
+        AdminAuditLog::record(
+            'admin.email.sent-now',
+            "Sent the waiting outbox by hand: {$outcome['sent']} delivered, {$outcome['failed']} failed",
+            null,
+            'outbox',
+        );
+
+        $remaining = EmailQueue::due()->count();
+
+        $message = "Sent {$outcome['sent']} " . Str::plural('email', $outcome['sent'])
+            . ($outcome['failed'] ? ", {$outcome['failed']} failed — see the list below" : '')
+            . ($remaining ? ". {$remaining} still waiting, press again to continue." : '.');
+
+        return back()->with($outcome['failed'] ? 'error' : 'success', $message);
     }
 
     /** Stop something that should never have been written. */

@@ -3,6 +3,19 @@
 @section('title', 'Outbox')
 @section('topbar-title', 'Outbox')
 
+@section('topbar-actions')
+    {{-- Mail normally leaves on the scheduler's minute. This is the button for
+         when you cannot wait for it — or when cron is not running at all. --}}
+    <form method="POST" action="{{ route('admin.outbox.send-pending') }}">
+        @csrf
+        <button type="submit" class="btn-filter" @disabled(($due ?? 0) === 0)
+                title="{{ ($due ?? 0) ? 'Send everything waiting, right now' : 'Nothing is waiting' }}">
+            <i class="mdi mdi-send-clock-outline"></i>
+            Send waiting now @if (($due ?? 0) > 0)({{ $due }})@endif
+        </button>
+    </form>
+@endsection
+
 @section('content')
 
     @if (session('success'))
@@ -13,19 +26,20 @@
     @endif
 
     {{-- Status first, because the only question anyone brings here is
-         "did it go out?" --}}
-    <div class="stats-bar cols-4" style="margin-bottom:1.5rem">
+         "did it go out?" Each card filters the list below it. --}}
+    <div class="stats-grid">
         @foreach ([
-            'pending' => ['Waiting', 'mdi-timer-sand', 'var(--primary)'],
-            'sent'    => ['Sent',    'mdi-check-circle-outline', '#15803d'],
-            'failed'  => ['Failed',  'mdi-alert-circle-outline', '#b91c1c'],
-            'held'    => ['Held',    'mdi-pause-circle-outline', 'var(--muted)'],
-        ] as $key => [$label, $icon, $colour])
+            'pending' => ['Waiting', 'mdi-timer-sand'],
+            'sent'    => ['Sent',    'mdi-check-circle-outline'],
+            'failed'  => ['Failed',  'mdi-alert-circle-outline'],
+            'held'    => ['Held',    'mdi-pause-circle-outline'],
+        ] as $key => [$label, $icon])
             <a href="{{ route('admin.outbox', ['status' => $key]) }}"
-               class="stat-card" style="text-decoration:none;color:inherit">
-                <div class="stat-icon" style="color:{{ $colour }}"><i class="mdi {{ $icon }}"></i></div>
+               class="stat-card {{ request('status') === $key ? 'accent-card' : '' }}"
+               style="text-decoration:none;color:inherit;display:block">
+                <div class="stat-icon"><i class="mdi {{ $icon }}"></i></div>
                 <p class="stat-label">{{ $label }}</p>
-                <p class="stat-value">{{ $counts[$key] ?? 0 }}</p>
+                <p class="stat-val">{{ number_format($counts[$key] ?? 0) }}</p>
             </a>
         @endforeach
     </div>
@@ -105,6 +119,16 @@
 
                         <td style="white-space:nowrap">
                             @if ($email->status !== 'sent')
+                                {{-- Send it this second, rather than waiting for
+                                     the next scheduler pass. --}}
+                                <form method="POST" action="{{ route('admin.outbox.send-now', $email) }}" style="display:inline">
+                                    @csrf
+                                    <button type="submit" class="btn-filter" style="padding:0.35rem 0.6rem;font-size:0.76rem"
+                                            title="Send this one now">
+                                        <i class="mdi mdi-send"></i>
+                                    </button>
+                                </form>
+
                                 <form method="POST" action="{{ route('admin.outbox.retry', $email) }}" style="display:inline">
                                     @csrf
                                     <button type="submit" class="btn-filter" style="padding:0.35rem 0.6rem;font-size:0.76rem"

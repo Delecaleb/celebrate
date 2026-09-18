@@ -3,9 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\EmailQueue;
+use App\Support\OutboxSender;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Empties the outbox.
@@ -13,6 +12,9 @@ use Illuminate\Support\Facades\Mail;
  * Runs every minute from the scheduler, so the only process mail depends on is
  * the one the app already needs for reminders and reconciliation. There is no
  * separate daemon to forget to start.
+ *
+ * The sending itself lives in OutboxSender, which the admin panel's "Send now"
+ * buttons also call — one code path, whoever asked for it.
  */
 class SendQueuedEmails extends Command
 {
@@ -22,97 +24,46 @@ class SendQueuedEmails extends Command
 
     protected $description = 'Send the emails waiting in the outbox';
 
-    public function handle(): int
+    public function handle(OutboxSender $sender): int
     {
         if (config('mail.default') === 'log') {
             $this->warn('mail.default is "log" — writing to the log rather than sending.');
         }
 
-        $this->releaseAbandoned();
+        if ($id = $this->option('id')) {
+            $email = EmailQueue::find($id);
 
-        $emails = $this->option('id')
-            ? EmailQueue::whereKey($this->option('id'))->get()
-            : EmailQueue::due()->limit((int) $this->option('limit'))->get();
+            if (! $email) {
+                $this->error("No email with id {$id}.");
 
-        if ($emails->isEmpty()) {
+                return self::FAILURE;
+            }
+
+            $outcome = $sender->sendNow($email);
+
+            $outcome['ok']
+                ? $this->line("  sent    #{$email->id} {$email->type} → {$email->to_address}")
+                : $this->line("  failed  #{$email->id} {$email->type} → {$email->to_address}: " . mb_substr((string) $outcome['error'], 0, 90));
+
+            return self::SUCCESS;
+        }
+
+        $outcome = $sender->sendDue((int) $this->option('limit'));
+
+        if ($outcome['results'] === []) {
             $this->info('Nothing waiting.');
 
             return self::SUCCESS;
         }
 
-        $sent = $failed = 0;
-
-        foreach ($emails as $email) {
-            if (! $this->claim($email)) {
-                // Another worker got there first.
-                continue;
-            }
-
-            $this->deliver($email) ? $sent++ : $failed++;
+        foreach ($outcome['results'] as $result) {
+            $result['ok']
+                ? $this->line("  sent    #{$result['id']} {$result['type']} → {$result['to']}")
+                : $this->line("  failed  #{$result['id']} {$result['type']} → {$result['to']}: " . mb_substr((string) $result['error'], 0, 90));
         }
 
-        $this->info("Sent {$sent}, failed {$failed}.");
+        $this->info("Sent {$outcome['sent']}, failed {$outcome['failed']}.");
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Take ownership of one email.
-     *
-     * The conditional update is the lock: two senders running at once cannot
-     * both move the same row out of pending, so nobody is emailed twice.
-     */
-    private function claim(EmailQueue $email): bool
-    {
-        $claimed = DB::table('email_queues')
-            ->where('id', $email->id)
-            ->where('status', EmailQueue::PENDING)
-            ->update([
-                'status'      => EmailQueue::SENDING,
-                'reserved_at' => now(),
-                'attempts'    => DB::raw('attempts + 1'),
-                'updated_at'  => now(),
-            ]);
-
-        if ($claimed === 0) {
-            return false;
-        }
-
-        $email->refresh();
-
-        return true;
-    }
-
-    private function deliver(EmailQueue $email): bool
-    {
-        try {
-            Mail::html($email->body_html, function ($message) use ($email) {
-                $message->to($email->to_address, $email->to_name)
-                    ->subject($email->subject)
-                    ->from($email->from_address, $email->from_name);
-            });
-
-            $email->markSent('Accepted by ' . config('mail.mailers.' . config('mail.default') . '.host', config('mail.default')));
-            $this->line("  sent    #{$email->id} {$email->type} → {$email->to_address}");
-
-            return true;
-        } catch (\Throwable $e) {
-            $email->markFailed($e->getMessage());
-
-            $this->line("  failed  #{$email->id} {$email->type} → {$email->to_address}: " . mb_substr($e->getMessage(), 0, 90));
-
-            return false;
-        }
-    }
-
-    /**
-     * Un-stick anything a worker claimed and then died holding, so a crashed
-     * pass does not strand mail in "sending" for good.
-     */
-    private function releaseAbandoned(): void
-    {
-        EmailQueue::where('status', EmailQueue::SENDING)
-            ->where('reserved_at', '<', now()->subMinutes(10))
-            ->update(['status' => EmailQueue::PENDING, 'reserved_at' => null]);
     }
 }
