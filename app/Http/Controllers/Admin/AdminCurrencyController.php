@@ -65,7 +65,13 @@ class AdminCurrencyController extends Controller
 
         AdminAuditLog::record(
             'admin.currency.updated',
-            sprintf('Changed %s — rate %s, %s', $currency->code, $currency->fallback_rate, $currency->is_active ? 'active' : 'inactive'),
+            sprintf(
+                'Changed %s — rate %s, minimum withdrawal %s, %s',
+                $currency->code,
+                $currency->fallback_rate,
+                $currency->min_withdrawal,
+                $currency->is_active ? 'active' : 'inactive'
+            ),
             $currency,
             $currency->code,
         );
@@ -125,6 +131,9 @@ class AdminCurrencyController extends Controller
             'symbol'        => ['required', 'string', 'max:8'],
             'decimals'      => ['required', 'integer', 'min:0', 'max:4'],
             'fallback_rate' => ['required', 'numeric', 'min:0.000001'],
+
+            // The smallest payout allowed in this currency. Zero is no minimum.
+            'min_withdrawal' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'sort_order'    => ['required', 'integer', 'min:0', 'max:9999'],
 
             // Typed as a comma-separated list, stored as an array — the column
@@ -134,7 +143,8 @@ class AdminCurrencyController extends Controller
             'code.alpha' => 'A currency code is three letters, like NGN or GHS.',
         ]);
 
-        $data['countries'] = $this->parseCountries($request->input('countries'));
+        $data['countries']      = $this->parseCountries($request->input('countries'));
+        $data['min_withdrawal'] = (float) ($data['min_withdrawal'] ?? 0);
 
         return $data;
     }

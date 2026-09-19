@@ -14,6 +14,10 @@ Schedule::command('mail:celebration-reminders')->dailyAt('08:00');
 // Send countdown emails daily at 9:00 AM to celebration owners
 Schedule::command('mail:celebration-countdowns')->dailyAt('09:00');
 
+// Two days out, and the morning of: how to edit the page, how to share it, and
+// a setup check. Early, so the day-of email is there before the day starts.
+Schedule::command('mail:celebration-notices')->dailyAt('07:00');
+
 // Send weekly gifting reports every Monday at 10:00 AM
 Schedule::command('mail:gifting-reports --period=weekly')->weeklyOn(1, '10:00');
 

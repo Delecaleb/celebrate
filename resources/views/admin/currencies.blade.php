@@ -31,6 +31,7 @@
                     <th>Currency</th>
                     <th>Countries</th>
                     <th>Fallback rate</th>
+                    <th>Min. withdrawal</th>
                     <th>In use</th>
                     <th>Status</th>
                     <th></th>
@@ -74,6 +75,18 @@
                                    @readonly($currency->isBase())>
                             <p style="font-size:0.73rem;color:var(--muted);margin-top:0.3rem">
                                 Per 1 {{ $base }}, when the live rate is unreachable.
+                            </p>
+                        </td>
+
+                        <td>
+                            <div style="display:flex;align-items:center;gap:0.35rem">
+                                <span style="font-size:0.85rem;color:var(--muted)">{{ $currency->symbol }}</span>
+                                <input form="cur-{{ $currency->id }}" name="min_withdrawal" type="number" step="0.01" min="0"
+                                       value="{{ (float) $currency->min_withdrawal }}"
+                                       class="filter-input" style="width:120px" aria-label="Minimum withdrawal">
+                            </div>
+                            <p style="font-size:0.73rem;color:var(--muted);margin-top:0.3rem">
+                                Smallest payout we will process. 0 means no minimum.
                             </p>
                         </td>
 
@@ -150,6 +163,11 @@
                     <label class="filter-label" for="new_rate">Fallback rate per 1 {{ $base }}</label>
                     <input id="new_rate" name="fallback_rate" type="number" step="0.000001" class="filter-input"
                            style="width:100%" placeholder="15.5" required>
+                </div>
+                <div>
+                    <label class="filter-label" for="new_min">Min. withdrawal</label>
+                    <input id="new_min" name="min_withdrawal" type="number" step="0.01" min="0" class="filter-input"
+                           style="width:100%" value="0" placeholder="0">
                 </div>
                 <div>
                     <label class="filter-label" for="new_countries">Countries</label>

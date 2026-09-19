@@ -16,7 +16,7 @@ class Currency extends Model
 {
     protected $fillable = [
         'code', 'name', 'symbol', 'decimals',
-        'is_active', 'fallback_rate', 'countries', 'sort_order',
+        'is_active', 'fallback_rate', 'min_withdrawal', 'countries', 'sort_order',
     ];
 
     protected function casts(): array
@@ -25,6 +25,7 @@ class Currency extends Model
             'decimals'      => 'integer',
             'is_active'     => 'boolean',
             'fallback_rate' => 'decimal:6',
+            'min_withdrawal' => 'decimal:2',
             'countries'     => 'array',
             'sort_order'    => 'integer',
         ];

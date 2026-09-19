@@ -52,6 +52,15 @@ class WithdrawalController extends Controller
         $amount      = (float) $request->amount;
         $currency    = $walletType === 'global' ? 'USD' : $this->currency->forUser($user);
 
+        // Same floor as the web controller, worded by the same helper.
+        if (! \App\Support\WithdrawalLimits::allows($amount, $currency)) {
+            return response()->json([
+                'message'        => \App\Support\WithdrawalLimits::message($currency),
+                'code'           => 'below_minimum',
+                'min_withdrawal' => \App\Support\WithdrawalLimits::min($currency),
+            ], 422);
+        }
+
         if (! $this->wallet->hasSufficientBalance($user, $amount, $walletType)) {
             return response()->json([
                 'message' => 'Insufficient wallet balance.',
@@ -93,7 +102,7 @@ class WithdrawalController extends Controller
 
         return (new WithdrawalResource($withdrawal))
             ->additional([
-                'message' => 'Withdrawal request submitted. We will process it within 1–2 business days.',
+                'message' => 'Withdrawal request submitted. We will process it within 1 to 2 business days.',
                 'wallet'  => [
                     'has_local_wallet' => $this->wallet->hasLocalWallet($user),
                     'local'            => $this->wallet->hasLocalWallet($user)

@@ -8,6 +8,7 @@ use App\Support\Outbox;
 use App\Models\Gift;
 use App\Models\PlatformAvailableGift;
 use App\Services\PaymentSystem\CurrencyService;
+use App\Services\PaymentSystem\NairaCheckout;
 use App\Services\PaymentSystem\PaymentFulfilmentService;
 use App\Services\PaymentSystem\PaystackService;
 use App\Services\PaymentSystem\StripeService;
@@ -37,6 +38,7 @@ class GiftController extends Controller
         private PaystackService $paystack,
         private StripeService   $stripe,
         private PaymentFulfilmentService $fulfilment,
+        private NairaCheckout $naira,
     ) {}
 
     /** How many were asked for: absent means one, never zero. */
@@ -355,32 +357,41 @@ class GiftController extends Controller
                 ]);
             }
 
-            $txn = $this->paystack->initTransaction($price, $userCurrency, [
-                'email'          => $senderEmail,
-                'gift_id'        => $gift->id,
-                'celebration_id' => $request->celebration_id,
-                'reference'      => $reference,
-            ]);
+            // Paystack when it is on, AlatPay behind it — and AlatPay alone
+            // when Paystack is off. The payer never chooses; whatever is up
+            // takes the payment.
+            $checkout = $this->naira->start(
+                amount:      $price,
+                currency:    $userCurrency,
+                reference:   $reference,
+                customer:    ['email' => $senderEmail, 'first_name' => $senderName],
+                metadata:    [
+                    'email'          => $senderEmail,
+                    'gift_id'        => $gift->id,
+                    'celebration_id' => $request->celebration_id,
+                    'reference'      => $reference,
+                ],
+                description: 'Gift for ' . ($gift->celebration->celebrant_name ?? 'a celebration'),
+            );
 
             // Paystack mints its own reference; every row in the basket has to
             // move onto it together or the callback will only find some of them.
-            Gift::where('transaction_reference', $reference)
-                ->update(['transaction_reference' => $txn['reference']]);
+            if ($checkout['reference'] !== $reference) {
+                Gift::where('transaction_reference', $reference)
+                    ->update(['transaction_reference' => $checkout['reference']]);
+            }
 
-            return response()->json([
-                'success'           => true,
-                'provider'          => 'paystack',
+            // Which method the payer picks inside AlatPay's checkout is not
+            // known yet — only that it went through AlatPay.
+            if ($checkout['provider'] === PaymentGateways::ALATPAY) {
+                Gift::where('transaction_reference', $checkout['reference'])
+                    ->update(['payment_method' => 'alatpay']);
+            }
 
-                // The browser opens the inline checkout with the access code
-                // and keeps the payer on the celebration page. The hosted URL
-                // stays in the response as the fallback for when the inline
-                // script cannot load — an ad blocker, a locked-down network.
-                // Absent if Paystack ever answers without one; the browser
-                // then falls back to the hosted page rather than breaking.
-                'access_code'       => $txn['access_code'] ?? null,
-                'reference'         => $txn['reference'],
-                'authorization_url' => $txn['authorization_url'],
-            ]);
+            // Paystack answers with an access code the browser opens inline;
+            // AlatPay answers with an account number to transfer to. The
+            // browser branches on `provider`.
+            return response()->json(['success' => true] + $checkout);
         } catch (\Throwable $e) {
             // Nothing was charged, so leave no pending rows behind.
             Gift::where('transaction_reference', $reference)->delete();

@@ -277,6 +277,16 @@
         }
         .btn-quiet:hover { border-color: var(--ink); }
 
+        .btn-outline {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+            padding: 0.7rem 1.4rem; border-radius: 999px;
+            font-family: inherit; font-size: 0.87rem; font-weight: 700; white-space: nowrap;
+            background: transparent; color: var(--primary);
+            border: 1.5px solid var(--primary); cursor: pointer; text-decoration: none;
+            transition: background 0.15s, color 0.15s;
+        }
+        .btn-outline:hover { background: var(--primary); color: #fff; }
+
         .icon-btn, .action-btn {
             display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
             padding: 0.48rem 0.85rem; font-family: inherit; font-size: 0.78rem; font-weight: 600;
@@ -896,7 +906,7 @@
                             <span>Bulk upload</span>
                         </button>
                     @endif
-                    <button class="btn-solid" x-on:click="$dispatch('open-modal', 'create-event')">
+                    <button class="btn-outline" x-on:click="$dispatch('open-modal', 'create-event')">
                         <i class="mdi mdi-plus"></i>
                         New celebration
                     </button>
@@ -1045,14 +1055,23 @@
                     <input type="hidden" name="wallet_type" value="global">
                 @endif
 
+                @php
+                    // Set per currency by an admin; 0 means there is no floor.
+                    $minLocal  = \App\Support\WithdrawalLimits::min($userCurrency);
+                    $minGlobal = \App\Support\WithdrawalLimits::min('USD');
+                    $hintLocal  = $minLocal > 0 ? 'Minimum ' . \App\Support\WithdrawalLimits::format($userCurrency) : 'Minimum 1 ' . $currencySymbol;
+                    $hintGlobal = $minGlobal > 0 ? 'Minimum ' . \App\Support\WithdrawalLimits::format('USD') : 'Minimum $1';
+                @endphp
+
                 <div class="m-field">
                     <label class="m-label">
                         Amount to withdraw (<span x-text="walletType === 'local' ? '{{ $userCurrency }}' : 'USD'"></span>)
                     </label>
                     <input type="number" name="amount" class="m-input"
-                           placeholder="e.g. 50" min="1" step="0.01"
+                           placeholder="e.g. 50" step="0.01"
+                           :min="walletType === 'local' ? {{ $minLocal > 0 ? $minLocal : 1 }} : {{ $minGlobal > 0 ? $minGlobal : 1 }}"
                            value="{{ old('amount') }}" required>
-                    <p class="m-hint">Minimum 1 <span x-text="walletType === 'local' ? '{{ $currencySymbol }}' : '$'"></span></p>
+                    <p class="m-hint" x-text="walletType === 'local' ? @js($hintLocal) : @js($hintGlobal)"></p>
                 </div>
 
                 <div class="m-field">

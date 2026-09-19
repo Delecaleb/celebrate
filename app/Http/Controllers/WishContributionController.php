@@ -210,6 +210,14 @@ class WishContributionController extends Controller
             }
         }
 
+        $gateways = PaymentGateways::activeFor($visitorCurrency);
+
+        // AlatPay only leads when Paystack is switched off; otherwise it waits
+        // below, for a Paystack call that will not start.
+        if (($gateways[0] ?? null) === PaymentGateways::ALATPAY) {
+            return $this->alatPayTransfer($contribution, $wish, $amountDisplay, $visitorCurrency, $reference, $contributorName, $contributorMail);
+        }
+
         $secretKey = config('services.paystack.secret');
         if (! $secretKey) {
             $contribution->delete();
@@ -232,6 +240,12 @@ class WishContributionController extends Controller
 
         if (! $response->successful() || ! $response->json('status')) {
             Log::error('Paystack wish payment init failed', $response->json());
+
+            // The other gateway gets its turn before anyone sees an error.
+            if (in_array(PaymentGateways::ALATPAY, $gateways, true)) {
+                return $this->alatPayTransfer($contribution, $wish, $amountDisplay, $visitorCurrency, $reference, $contributorName, $contributorMail);
+            }
+
             $contribution->delete();
             return response()->json([
                 'success' => false,
@@ -251,6 +265,42 @@ class WishContributionController extends Controller
             'access_code'       => $response->json('data.access_code'),
             'authorization_url' => $response->json('data.authorization_url'),
         ]);
+    }
+
+    /**
+     * Open an AlatPay account for this contribution and hand the details to
+     * the page, which then waits for the transfer to land.
+     */
+    private function alatPayTransfer(
+        WishContribution $contribution,
+        Wish $wish,
+        float $amount,
+        string $currency,
+        string $reference,
+        string $name,
+        string $email,
+    ) {
+        try {
+            $account = app(\App\Services\PaymentSystem\AlatPayService::class)->createVirtualAccount(
+                amount:      $amount,
+                currency:    $currency,
+                orderId:     $reference,
+                customer:    ['email' => $email, 'first_name' => $name],
+                description: 'Towards ' . $wish->name,
+            );
+        } catch (\Throwable $e) {
+            Log::error('AlatPay wish payment init failed', ['error' => $e->getMessage()]);
+            $contribution->delete();
+
+            return response()->json([
+                'success' => false,
+                'message' => config('app.debug')
+                    ? 'AlatPay initialisation failed: ' . $e->getMessage()
+                    : 'Payment initialisation failed. Please try again.',
+            ], 502);
+        }
+
+        return response()->json(['success' => true, 'provider' => PaymentGateways::ALATPAY, 'reference' => $reference] + $account);
     }
 
     /**

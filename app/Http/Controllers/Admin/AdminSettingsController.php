@@ -49,6 +49,9 @@ class AdminSettingsController extends Controller
             'group'  => $group,
             'groups' => array_keys(SettingsRepository::CATALOGUE),
             'fields' => $fields,
+            // Payments has one tab per gateway; every other group is one list.
+            // Keyed by section, empty string for anything unsectioned.
+            'sections' => collect($fields)->groupBy(fn ($field) => $field['section'] ?? '', preserveKeys: true)->all(),
             // Credentials being right is only half of mail working; the other
             // half is something draining the queue.
             'queue'  => $group === 'mail' ? QueueHealth::check() : null,

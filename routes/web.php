@@ -40,6 +40,7 @@ use App\Http\Controllers\WalletFundingController;
 */
 Route::post('/webhooks/paystack', [WebhookController::class, 'paystack'])->name('webhooks.paystack');
 Route::post('/webhooks/stripe',   [WebhookController::class, 'stripe'])->name('webhooks.stripe');
+Route::post('/webhooks/alatpay',  [WebhookController::class, 'alatpay'])->name('webhooks.alatpay');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/robots.txt',  [SitemapController::class, 'robots'])->name('robots');
@@ -129,6 +130,21 @@ Route::middleware('auth')->group(function () {
 */
 Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]))
     ->middleware('throttle:60,1')->name('csrf.token');
+
+/*
+| "Has my transfer landed?" — polled by a page sitting on an AlatPay account
+| number. Reads our own records first and only then asks the gateway, so the
+| common case costs nothing.
+*/
+Route::get('/payments/transfer-status', \App\Http\Controllers\TransferStatusController::class)
+    ->middleware('throttle:60,1')->name('payments.transfer-status');
+
+/*
+| An account number to transfer to, for a browser that cannot open AlatPay's
+| checkout. Only ever for a payment that is already pending.
+*/
+Route::post('/payments/alatpay/account', \App\Http\Controllers\AlatPayAccountController::class)
+    ->middleware('throttle:12,1')->name('payments.alatpay.account');
 
 // gift routes
 Route::prefix('gift')->group(function () {

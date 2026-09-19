@@ -43,39 +43,86 @@ class SettingsRepository
             'paystack_enabled' => [
                 'label'  => 'Paystack checkout',
                 'config' => 'services.paystack.enabled',
+                'section' => 'paystack',
                 'type'   => 'toggle',
                 'help'   => 'Off stops new naira checkouts. Payments already started still settle, and wallet gifts keep working.',
             ],
             'stripe_enabled' => [
                 'label'  => 'Stripe checkout',
                 'config' => 'services.stripe.enabled',
+                'section' => 'stripe',
                 'type'   => 'toggle',
                 'help'   => 'Off stops new dollar checkouts. Payments already started still settle, and wallet gifts keep working.',
+            ],
+            'alatpay_enabled' => [
+                'label'     => 'AlatPay checkout',
+                'config'    => 'services.alatpay.enabled',
+                'section'   => 'alatpay',
+                'type'      => 'toggle',
+                'default'   => false,
+                'on_label'  => 'On — naira payments can go through AlatPay',
+                'off_label' => 'Off — AlatPay takes no payments',
+                'help'      => 'Bank transfer for naira. With Paystack on, AlatPay is the fallback; with Paystack off, AlatPay is the checkout.',
             ],
             'paystack_secret' => [
                 'label'  => 'Paystack secret key',
                 'config' => 'services.paystack.secret',
+                'section' => 'paystack',
                 'secret' => true,
                 'help'   => 'Starts sk_. Without it nothing can be charged, verified or paid out, and bank verification falls back to manual entry.',
             ],
             'paystack_public' => [
                 'label'  => 'Paystack public key',
                 'config' => 'services.paystack.public_key',
+                'section' => 'paystack',
                 'help'   => 'Starts pk_. Safe to expose in a browser.',
             ],
             'stripe_secret' => [
                 'label'  => 'Stripe secret key',
                 'config' => 'services.stripe.secret',
+                'section' => 'stripe',
                 'secret' => true,
                 'help'   => 'Used for checkouts in the base currency.',
             ],
             'stripe_publishable' => [
                 'label'  => 'Stripe publishable key',
                 'config' => 'services.stripe.publishable_key',
+                'section' => 'stripe',
+            ],
+            'alatpay_full_checkout' => [
+                'label'     => 'AlatPay payment options',
+                'config'    => 'services.alatpay.full_checkout',
+                'section'   => 'alatpay',
+                'type'      => 'toggle',
+                'default'   => true,
+                'on_label'  => 'Let payers choose — card, transfer or USSD',
+                'off_label' => 'Bank transfer only',
+                'help'      => 'Which of those appear is set on your business in the AlatPay portal; this only chooses between their checkout and going straight to a transfer account.',
+            ],
+            'alatpay_business_id' => [
+                'label'  => 'AlatPay business ID',
+                'config' => 'services.alatpay.business_id',
+                'section' => 'alatpay',
+                'help'   => 'From the AlatPay portal, against the business whose callback URL points here.',
+            ],
+            'alatpay_key' => [
+                'label'  => 'AlatPay subscription key',
+                'config' => 'services.alatpay.subscription_key',
+                'section' => 'alatpay',
+                'secret' => true,
+                'help'   => 'The primary key from the AlatPay developer section. Sent as Ocp-Apim-Subscription-Key.',
+            ],
+            'alatpay_webhook_secret' => [
+                'label'  => 'AlatPay webhook secret',
+                'config' => 'services.alatpay.webhook_secret',
+                'section' => 'alatpay',
+                'secret' => true,
+                'help'   => 'Optional. If AlatPay signs its callbacks for your business, set the same value here.',
             ],
             'stripe_webhook_secret' => [
                 'label'  => 'Stripe webhook signing secret',
                 'config' => 'services.stripe.webhook_secret',
+                'section' => 'stripe',
                 'secret' => true,
                 'help'   => 'From the endpoint page in the Stripe dashboard — not the API key. Without it every webhook is rejected.',
             ],
@@ -191,6 +238,7 @@ class SettingsRepository
         $meta      = [];
         $countries = [];
         $rates     = [];
+        $minimums  = [];
 
         foreach ($currencies as $currency) {
             $meta[$currency->code] = [
@@ -200,6 +248,9 @@ class SettingsRepository
             ];
 
             $rates[$currency->code] = (float) $currency->fallback_rate;
+
+            // The smallest payout allowed in it. Zero means no minimum.
+            $minimums[$currency->code] = (float) $currency->min_withdrawal;
 
             // Cast to array: a hand-edited row could hold a string, and the
             // whole site reads this at boot.
@@ -214,6 +265,7 @@ class SettingsRepository
             'currency.currencies'     => $meta,
             'currency.country_map'    => $countries,
             'currency.fallback_rates' => $rates,
+            'currency.minimums'       => $minimums,
         ];
     }
 

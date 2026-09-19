@@ -21,6 +21,8 @@
             sendUrl:         '{{ route('gift.send') }}',
             payUrl:          '{{ route('gift.payment.initiate') }}',
             confirmUrl:      '{{ route('gift.payment.confirm') }}',
+            statusUrl:       '{{ route('payments.transfer-status') }}',
+            accountUrl:      '{{ route('payments.alatpay.account') }}',
             csrfToken:       '{{ csrf_token() }}',
         })"
         @open-gift-detail.window="openFromExternal($event.detail)"
@@ -349,6 +351,66 @@
                 </div>
             </template>
 
+        </div>
+
+        {{-- ── TRANSFER VIEW (AlatPay) ───────────────────────────────────────
+             No card form: AlatPay opens an account for this one payment, the
+             guest transfers from their own bank app, and the page waits. --}}
+        <div x-show="view === 'transfer'" x-cloak x-transition class="p-6">
+
+            <p class="text-lg font-bold text-gray-900"
+               x-text="transfer?.account_number ? 'Transfer to finish your gift' : 'Waiting for your payment'"></p>
+            <p class="mt-1 text-sm text-gray-500"
+               x-text="transfer?.account_number
+                   ? 'Send this exact amount from your bank app. We confirm it on this page — no need to send a receipt.'
+                   : 'This page confirms it by itself the moment it lands. You can close it — your gift still arrives.'"></p>
+
+            <div x-show="transfer?.account_number" class="mt-4 rounded-2xl border-2 border-dashed border-purple-300 bg-purple-50 px-5 py-5 text-center">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Amount</p>
+                <p class="text-2xl font-extrabold text-gray-900"
+                   x-text="visitorSymbol + Number(transfer?.amount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })"></p>
+
+                <p class="mt-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Account number</p>
+                <p class="text-3xl font-extrabold tracking-[0.2em] text-purple-700" x-text="transfer?.account_number"></p>
+
+                <button type="button" @click="copyAccountNumber()"
+                        class="mt-2 inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-white px-4 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-50">
+                    <i class="mdi" :class="copied ? 'mdi-check' : 'mdi-content-copy'"></i>
+                    <span x-text="copied ? 'Copied' : 'Copy number'"></span>
+                </button>
+
+                <p class="mt-3 text-sm text-gray-600">
+                    <span class="font-semibold" x-text="transfer?.bank_name"></span>
+                    <template x-if="transfer?.account_name">
+                        <span> · <span x-text="transfer.account_name"></span></span>
+                    </template>
+                </p>
+            </div>
+
+            <div class="mt-4 flex items-center gap-2 text-sm text-gray-500">
+                <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
+                Waiting for your transfer…
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+                <button type="button" @click="checkTransfer()"
+                        class="rounded-full bg-purple-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-purple-700">
+                    I've sent it — check now
+                </button>
+                <button type="button" @click="view = 'detail'"
+                        class="rounded-full border border-gray-200 px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-50">
+                    Back
+                </button>
+            </div>
+
+            <p class="mt-3 text-xs text-gray-400">
+                This account belongs to this payment only. If you close the page, the gift still arrives once your transfer lands.
+            </p>
+
+            <p x-show="success" x-cloak class="mt-3 text-sm font-semibold text-emerald-600" x-text="success"></p>
         </div>
 
     </div>

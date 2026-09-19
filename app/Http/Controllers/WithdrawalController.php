@@ -45,6 +45,14 @@ class WithdrawalController extends Controller
         $userCurrency = $this->currency->forUser($user);
         $currency     = ($walletType === 'global') ? 'USD' : $userCurrency;
 
+        // A payout smaller than the transfer is worth. Admins set the figure
+        // per currency, so ₦ and $ are not held to one converted number.
+        if (! \App\Support\WithdrawalLimits::allows($amount, $currency)) {
+            return back()
+                ->withInput()
+                ->with('error', \App\Support\WithdrawalLimits::message($currency));
+        }
+
         if (! $this->wallet->hasSufficientBalance($user, $amount, $walletType)) {
             return back()
                 ->withInput()
@@ -84,6 +92,6 @@ class WithdrawalController extends Controller
         });
 
         return back()
-            ->with('success', 'Withdrawal request submitted. We will process it within 1â€“2 business days.');
+            ->with('success', 'Withdrawal request submitted. We will process it within 1 to 2 business days.');
     }
 }

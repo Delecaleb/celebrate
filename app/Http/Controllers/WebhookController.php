@@ -63,6 +63,71 @@ class WebhookController extends Controller
     }
 
     /**
+     * AlatPay calls the URL registered against the business when a transfer
+     * lands.
+     *
+     * AlatPay publishes no signing scheme, so this never takes the payload's
+     * word for it. Either the shared secret set in Settings matches, or the
+     * transaction is read back from AlatPay before a penny is credited. With
+     * neither available nothing is fulfilled — an unverified "you have been
+     * paid" is exactly what a forger would send.
+     */
+    public function alatpay(Request $request): Response
+    {
+        $reference = (string) ($request->json('data.orderId') ?? $request->json('orderId') ?? '');
+        $status    = (string) ($request->json('data.status') ?? $request->json('status') ?? '');
+        $alatId    = (string) ($request->json('data.id') ?? $request->json('data.transactionId') ?? '');
+
+        if ($reference === '') {
+            return response('No order id', 200);
+        }
+
+        if (! \App\Services\PaymentSystem\AlatPayService::isPaid($status)) {
+            Log::info('AlatPay webhook ignored', ['reference' => $reference, 'status' => $status]);
+
+            return response('Ignored', 200);
+        }
+
+        if (! $this->alatPayIsTrustworthy($request, $alatId)) {
+            Log::warning('AlatPay webhook could not be verified', ['reference' => $reference, 'ip' => $request->ip()]);
+
+            return response('Unverified', 202);
+        }
+
+        $outcome = $this->fulfilment->fulfil($reference);
+
+        Log::info('AlatPay webhook handled', ['reference' => $reference, 'status' => $outcome]);
+
+        return response($outcome, 200);
+    }
+
+    /**
+     * Either the secret proves who sent it, or AlatPay itself confirms the
+     * payment when asked.
+     */
+    private function alatPayIsTrustworthy(Request $request, string $transactionId): bool
+    {
+        $secret = (string) (config('services.alatpay.webhook_secret') ?? '');
+
+        if ($secret !== '') {
+            $signature = (string) $request->header('x-signature', '');
+
+            // base64 HMAC-SHA256 of the raw body, as AlatPay's own plugins
+            // verify it. Compared in constant time.
+            return hash_equals(base64_encode(hash_hmac('sha256', $request->getContent(), $secret, true)), $signature);
+        }
+
+        if ($transactionId === '') {
+            return false;
+        }
+
+        $remote = app(\App\Services\PaymentSystem\AlatPayService::class)->transactionStatus($transactionId);
+
+        return $remote !== null
+            && \App\Services\PaymentSystem\AlatPayService::isPaid((string) ($remote['status'] ?? ''));
+    }
+
+    /**
      * Stripe signs `timestamp.payload` with HMAC-SHA256 using the endpoint's
      * own signing secret — not the API key.
      */

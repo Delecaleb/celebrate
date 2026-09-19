@@ -22,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(WalletService::class);
         $this->app->singleton(StripeService::class);
         $this->app->singleton(PaystackService::class);
+        $this->app->singleton(\App\Services\PaymentSystem\AlatPayService::class);
         $this->app->singleton(CheckoutService::class);
     }
 

@@ -59,4 +59,16 @@ return [
     'fallback_rates' => [
         'NGN' => 1620.00,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Smallest withdrawal, per currency
+    |--------------------------------------------------------------------------
+    | Set by an admin against each currency (Settings → Currencies) and read
+    | back through App\Support\WithdrawalLimits. A currency with no figure, or
+    | zero, has no minimum — which is how every currency starts.
+    */
+    'minimums' => [
+        // 'NGN' => 5000.00,
+    ],
 ];

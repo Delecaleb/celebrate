@@ -198,6 +198,12 @@ class WalletController extends Controller
             'has_local_wallet' => $hasLocalWallet,
             'local'            => $hasLocalWallet ? round($this->wallet->balance($user, 'local'), 2) : 0.0,
             'global'           => round($this->wallet->balance($user, 'global'), 2),
+            // The smallest payout each wallet allows, so the app can say so
+            // before somebody fills the form in.
+            'min_withdrawal'   => [
+                'local'  => \App\Support\WithdrawalLimits::min($currency),
+                'global' => \App\Support\WithdrawalLimits::min('USD'),
+            ],
         ];
     }
 

@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/paystack',
             'webhooks/stripe',
+            'webhooks/alatpay',
         ]);
 
         // Behind a load balancer or CDN the app sees the proxy, not the

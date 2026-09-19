@@ -56,6 +56,28 @@ class Celebration extends Model
         'allow_guest_posts' => 'boolean',
     ];
 
+    /**
+     * The day this celebration actually happens.
+     *
+     * event_date is what the Settings tab edits, but a page created from the
+     * front-page form only ever sets start_date — so anything that counts down
+     * to "the day" has to read both, or it silently never fires.
+     */
+    public function celebrationDate(): ?\Illuminate\Support\Carbon
+    {
+        return $this->event_date ?? $this->start_date;
+    }
+
+    /** Celebrations happening on one calendar day, by whichever date they carry. */
+    public function scopeHappeningOn(\Illuminate\Database\Eloquent\Builder $query, $date): \Illuminate\Database\Eloquent\Builder
+    {
+        $day = \Illuminate\Support\Carbon::parse($date)->toDateString();
+
+        return $query->where(fn ($q) => $q
+            ->whereDate('event_date', $day)
+            ->orWhere(fn ($w) => $w->whereNull('event_date')->whereDate('start_date', $day)));
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

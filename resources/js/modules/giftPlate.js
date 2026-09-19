@@ -9,13 +9,24 @@
  */
 import { postJson, failureMessage } from './http';
 import { loadPaystack, payInline } from './paystackInline';
+import { loadAlatPay, payWithAlatPay as openAlatPayCheckout } from './alatpayInline';
 import { giftConfetti } from './giftConfetti';
 
 export function giftPlate(config) {
     return {
         // ── state ──────────────────────────────────────────────────────────
 
-        view:            'grid',   // 'grid' | 'detail'
+        view:            'grid',   // 'grid' | 'detail' | 'transfer'
+
+        /**
+         * An AlatPay bank transfer in progress: the account to pay into, and
+         * the polling that waits for the money to land. Null for card
+         * payments, which finish in front of the payer.
+         */
+        transfer:        null,
+        transferWaited:  0,
+        transferTimer:   null,
+        copied:          false,
 
         /**
          * The basket: one entry per gift, in the order they were first tapped.
@@ -43,6 +54,8 @@ export function giftPlate(config) {
         sendUrl:         config.sendUrl,
         payUrl:          config.payUrl,
         confirmUrl:      config.confirmUrl,
+        statusUrl:       config.statusUrl,
+        accountUrl:      config.accountUrl,
         csrfToken:       config.csrfToken,
 
         // ── navigation ─────────────────────────────────────────────────────
@@ -289,6 +302,14 @@ export function giftPlate(config) {
                     return;
                 }
 
+                // AlatPay opens its own checkout, where the payer picks card,
+                // transfer or USSD for themselves.
+                if (data.provider === 'alatpay' && data.checkout) {
+                    await this.payWithAlatPay(data.checkout, data.reference);
+
+                    return;
+                }
+
                 if (data.authorization_url) {
                     window.location.href = data.authorization_url;
 
@@ -327,6 +348,155 @@ export function giftPlate(config) {
 
             this.success = 'Confirming your payment…';
             await this.confirmPayment(result.reference || reference);
+        },
+
+        // ── AlatPay ───────────────────────────────────────────────────────
+
+        /**
+         * Hand over to AlatPay's checkout, then ask our server what happened.
+         *
+         * Their window reporting success is a prompt to go and check, never
+         * proof: the server asks AlatPay directly before crediting anything.
+         */
+        async payWithAlatPay(checkout, reference) {
+            const ready = await loadAlatPay(checkout.script);
+
+            if (! ready) {
+                // Their script is blocked. A plain bank transfer still works.
+                await this.openTransferAccount(reference);
+
+                return;
+            }
+
+            const result = await openAlatPayCheckout(checkout);
+
+            if (result.outcome === 'closed') {
+                this.error   = 'Payment cancelled. Nothing has been charged.';
+                this.loading = false;
+
+                return;
+            }
+
+            if (result.outcome === 'error') {
+                this.error   = result.message || 'The payment window could not be opened. Please try again.';
+                this.loading = false;
+
+                return;
+            }
+
+            this.success  = 'Confirming your payment…';
+            this.transfer = { reference, transaction_id: result.transactionId };
+
+            if (await this.checkTransfer()) {
+                return;
+            }
+
+            // Paid by transfer or USSD, most likely: it lands in a moment and
+            // the waiting panel says so rather than an error.
+            this.startTransfer({ ...this.transfer, pending: true });
+            this.success = 'Almost there — we are waiting for your payment to land.';
+        },
+
+        /** The fallback when AlatPay's window cannot open: an account number. */
+        async openTransferAccount(reference) {
+            try {
+                const { data } = await postJson(this.accountUrl, { reference }, this.csrfToken);
+
+                if (data?.success) {
+                    this.startTransfer({ ...data, reference });
+
+                    return;
+                }
+
+                this.error   = data?.message || 'We could not start that payment. Please try again.';
+                this.loading = false;
+            } catch {
+                this.error   = 'Network error. Please try again.';
+                this.loading = false;
+            }
+        },
+
+        // ── bank transfer ─────────────────────────────────────────────────
+
+        /** Show the account to pay into, and start waiting for the money. */
+        startTransfer(data) {
+            this.transfer       = data;
+            this.transferWaited = 0;
+            this.copied         = false;
+            this.error          = '';
+            this.loading        = false;
+            this.view           = 'transfer';
+
+            this.pollTransfer();
+        },
+
+        /**
+         * Ask every five seconds, and give up after twenty minutes.
+         *
+         * Giving up only stops the asking — the webhook still settles the
+         * payment whenever it arrives, so nothing is lost by closing this
+         * panel.
+         */
+        pollTransfer() {
+            clearTimeout(this.transferTimer);
+
+            this.transferTimer = setTimeout(async () => {
+                this.transferWaited += 5;
+
+                const landed = await this.checkTransfer();
+
+                if (! landed && this.transferWaited < 1200) {
+                    this.pollTransfer();
+                }
+            }, 5000);
+        },
+
+        /** @return {Promise<boolean>} true once the money is in. */
+        async checkTransfer() {
+            if (! this.transfer) {
+                return false;
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    reference:      this.transfer.reference,
+                    transaction_id: this.transfer.transaction_id || '',
+                });
+
+                const res  = await fetch(this.statusUrl + '?' + params.toString(), {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await res.json().catch(() => ({}));
+
+                if (! data.paid) {
+                    return false;
+                }
+
+                clearTimeout(this.transferTimer);
+
+                this.error   = '';
+                this.success = 'Payment received. Thank you!';
+
+                await giftConfetti();
+
+                window.location.reload();
+
+                return true;
+            } catch {
+                // A failed check is not a failed payment — keep waiting.
+                return false;
+            }
+        },
+
+        /** The payer types this into their banking app, so make it one tap. */
+        async copyAccountNumber() {
+            try {
+                await navigator.clipboard.writeText(this.transfer.account_number);
+                this.copied = true;
+                setTimeout(() => { this.copied = false; }, 2500);
+            } catch {
+                // Clipboard blocked; the number is on screen to read.
+            }
         },
 
         /** Ask our server what actually happened, and act on that. */
