@@ -78,6 +78,15 @@ class CelebrationController extends Controller
 
             } else {
 
+                // Only a brand-new account is asked for a number — somebody
+                // signing in through this form already gave us one.
+                $request->validate([
+                    'phone' => \App\Support\PhoneNumbers::rules(),
+                ], [
+                    'phone.required' => 'Please enter your phone number.',
+                    'phone.regex'    => 'That phone number does not look right — check the country and the digits.',
+                ]);
+
                 $uuid = (string) \Illuminate\Support\Str::uuid();
 
                 $firstName = explode(' ', $request->celebrantName)[0] ?? '--';
@@ -90,6 +99,7 @@ class CelebrationController extends Controller
                     'first_name' => $firstName,
                     'last_name' => $lastName,
                     'email' => $request->email,
+                    'phone' => $request->phone,
                     'password' => Hash::make($request->password),
                 ]);
 

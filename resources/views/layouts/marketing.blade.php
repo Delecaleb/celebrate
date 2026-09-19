@@ -250,7 +250,7 @@
                 <div x-show="step === 1" x-transition>
                     <div class="field">
                         <label class="field-label" for="ce-name">Who are we celebrating?</label>
-                        <input id="ce-name" type="text" class="input" x-model="form.celebrantName" placeholder="e.g. Sandra">
+                        <input id="ce-name" type="text" class="input" x-model="form.celebrantName" placeholder="Name of celebrant">
                     </div>
 
                     <div class="field">
@@ -315,6 +315,15 @@
                         <p class="field-error" x-show="errors.email" x-cloak x-text="errors.email"></p>
                     </div>
 
+                    <x-phone-input
+                        name="ce_phone"
+                        label="Phone number"
+                        x-model="auth.phone"
+                        :required="false"
+                        hint="So we can reach you about your page and your money."
+                    />
+                    <p class="field-error" x-show="errors.phone" x-cloak x-text="errors.phone" style="margin-top:-0.7rem;margin-bottom:0.9rem"></p>
+
                     <div class="field">
                         <label class="field-label" for="ce-pass">Password</label>
                         <input id="ce-pass" type="password" class="input" x-model="auth.password" placeholder="Create a password"
@@ -359,11 +368,11 @@
             ],
 
             form: { celebrantName: '', eventType: '', startDate: '', endDate: '', eventTitle: '' },
-            auth: { email: '', password: '' },
+            auth: { email: '', password: '', phone: '' },
 
             // What the server refused: per-field messages for step 2, a line for
             // the banner, and a code the banner uses to offer a sign-in link.
-            errors: { email: '', password: '' },
+            errors: { email: '', password: '', phone: '' },
             message: '',
             code: '',
             submitting: false,
@@ -407,7 +416,7 @@
                 this.submitting = true;
                 this.message    = '';
                 this.code       = '';
-                this.errors     = { email: '', password: '' };
+                this.errors     = { email: '', password: '', phone: '' };
 
                 try {
                     const response = await fetch('/create-celebration', {
@@ -433,6 +442,7 @@
 
                     this.errors.email    = fieldErrors.email?.[0] || '';
                     this.errors.password = fieldErrors.password?.[0] || '';
+                    this.errors.phone    = fieldErrors.phone?.[0] || '';
                     this.code            = data.code || '';
 
                     // A problem with the details belongs on step 1 — send the

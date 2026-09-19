@@ -17,6 +17,7 @@ import './modules/commentShare';          // shareComment() — comment-to-image
 import './modules/photobookGenerator';    // photobookGenerator() Alpine component
 import './modules/pageRouter';            // AJAX navigation for the marketing site and dashboard
 import './modules/slugEditor';            // slugEditor() — custom celebration URL
+import './modules/phoneInput';          // phoneInput() — phone field with country picker
 
 // ── Global registrations ───────────────────────────────────────────────────
 window.confetti = confetti;

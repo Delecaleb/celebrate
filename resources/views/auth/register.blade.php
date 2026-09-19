@@ -326,7 +326,7 @@
                         id="name"
                         name="name"
                         value="{{ old('name') }}"
-                        placeholder="e.g. Sandra Okafor"
+                        placeholder="Enter your full name"
                         required
                         autofocus
                         autocomplete="name"
@@ -343,7 +343,7 @@
                         id="email"
                         name="email"
                         value="{{ old('email') }}"
-                        placeholder="you@example.com"
+                        placeholder="Your email address"
                         required
                         autocomplete="username"
                     >
@@ -351,6 +351,14 @@
                         <p class="error-text">{{ $message }}</p>
                     @enderror
                 </div>
+
+                <x-phone-input
+                    name="phone"
+                    label="Phone number"
+                    :country="$phoneCountry ?? null"
+                    :value="old('phone')"
+                    hint="So we can reach you about your celebration and your money."
+                />
 
                 <div class="field">
                     <label for="password">Password</label>

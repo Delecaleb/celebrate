@@ -20,7 +20,10 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
-        return view('auth.register');
+        // Opening on the visitor's own country saves nearly everyone a tap.
+        return view('auth.register', [
+            'phoneCountry' => app(\App\Services\LocationModule\LocationService::class)->countryOrFallback(request()->ip()),
+        ]);
     }
 
     /**
@@ -34,6 +37,12 @@ class RegisteredUserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'phone' => \App\Support\PhoneNumbers::rules(),
+        ], [
+            // The field builds this itself, so a failure here means an empty or
+            // impossible number rather than a format nobody could have guessed.
+            'phone.required' => 'Please enter your phone number.',
+            'phone.regex'    => 'That phone number does not look right — check the country and the digits.',
         ]);
 
         $fullname = explode(' ', $request->name, 2);
@@ -43,6 +52,7 @@ class RegisteredUserController extends Controller
             'first_name' => $fullname[0],
             'last_name' => $fullname[1] ?? 'User',
             'email' => $request->email,
+            'phone' => $request->phone,
             'password' => Hash::make($request->password),
         ]);
 

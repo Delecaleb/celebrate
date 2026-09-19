@@ -1056,7 +1056,7 @@
                                     id="ce-name"
                                     type="text"
                                     x-model="form.celebrantName"
-                                    placeholder="e.g. Sandra"
+                                    placeholder="Name of the celebrant(s)"
                                     class="w-full rounded-xl2 border-2 border-ink-100 px-4 py-3 text-sm font-medium outline-none transition focus:border-party-400 focus:ring-4 focus:ring-party-100"
                                 >
                             </div>

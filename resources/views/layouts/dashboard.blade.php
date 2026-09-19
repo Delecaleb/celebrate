@@ -955,7 +955,7 @@
                     <div x-show="step === 1" x-transition>
                         <div class="m-field">
                             <label class="m-label">Name of celebrant</label>
-                            <input type="text" class="m-input" x-model="form.celebrantName" placeholder="e.g. Sandra">
+                            <input type="text" class="m-input" x-model="form.celebrantName" placeholder="Name of celebrant">
                         </div>
                         <div class="m-field">
                             <span class="m-label" id="dash-type-label">What are you celebrating?</span>

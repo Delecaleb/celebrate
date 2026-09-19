@@ -31,6 +31,8 @@ class AuthController extends Controller
             'email'        => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password'     => ['required', 'confirmed', Rules\Password::defaults()],
             'device_name'  => ['nullable', 'string', 'max:120'],
+            // Optional here, for an app build that has no field for it yet.
+            'phone'        => \App\Support\PhoneNumbers::rules(required: false),
         ]);
 
         $fullname = explode(' ', $data['name'], 2);
@@ -40,6 +42,7 @@ class AuthController extends Controller
             'first_name' => $fullname[0],
             'last_name'  => $fullname[1] ?? 'User',
             'email'      => $data['email'],
+            'phone'      => $data['phone'] ?? null,
             'password'   => Hash::make($data['password']),
         ]);
 
