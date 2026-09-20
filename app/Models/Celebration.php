@@ -49,6 +49,7 @@ class Celebration extends Model
         'start_date' => 'datetime',
         'end_date' => 'datetime',
         'published_at' => 'datetime',
+        'last_report_sent_at' => 'datetime',
         'is_public' => 'boolean',
         'allow_wishes' => 'boolean',
         'allow_gifts' => 'boolean',

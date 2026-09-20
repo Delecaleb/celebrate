@@ -18,11 +18,12 @@ Schedule::command('mail:celebration-countdowns')->dailyAt('09:00');
 // a setup check. Early, so the day-of email is there before the day starts.
 Schedule::command('mail:celebration-notices')->dailyAt('07:00');
 
-// Send weekly gifting reports every Monday at 10:00 AM
-Schedule::command('mail:gifting-reports --period=weekly')->weeklyOn(1, '10:00');
-
-// Send monthly gifting reports on the 1st of each month at 10:00 AM
-Schedule::command('mail:gifting-reports --period=monthly')->monthlyOn(1, '10:00');
+/*
+| The report on a finished celebration, at 11:00 the day after it ends. It
+| goes again only when more arrives — people keep giving for days afterwards —
+| and never again for a page nobody has touched since.
+*/
+Schedule::command('mail:event-reports')->dailyAt('11:00');
 
 // Settle payments a callback or webhook never confirmed. Ten minutes is short
 // enough that nobody waits long, and long enough that a slow gateway redirect
