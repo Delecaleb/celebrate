@@ -1,6 +1,9 @@
 function wishForm() {
     return {
         message: '',
+        // Prefilled for anyone signed in; a guest types it themselves. It is
+        // what stops a wall of wishes reading "Anonymous" all the way down.
+        guestName: window.CelebrationConfig.viewerName || '',
         loading: false,
         showGuestModal: false,
         commentImage: null,
@@ -260,6 +263,14 @@ function wishForm() {
                 this.submitWish();
                 return;
             }
+
+            // A guest who has said who they are does not need to be asked
+            // again; the sign-in panel is for anyone who left it blank.
+            if (this.guestName.trim()) {
+                this.submitWish();
+                return;
+            }
+
             this.showGuestModal = true;
             this.tab = 'welcome';
         },
@@ -280,6 +291,12 @@ function wishForm() {
             formData.append('celebration_id', window.CelebrationConfig.celebrationId);
             formData.append('comment', this.message);
             formData.append('anonymous', anonymous ? 1 : 0);
+
+            // Ignored by the server for anyone signed in — it uses the account
+            // name — and dropped entirely for a deliberately anonymous wish.
+            if (! anonymous && this.guestName.trim()) {
+                formData.append('guest_name', this.guestName.trim());
+            }
 
             if (this.commentImage) {
                 formData.append('image', this.commentImage);

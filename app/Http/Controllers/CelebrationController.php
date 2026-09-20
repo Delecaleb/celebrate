@@ -161,7 +161,7 @@ class CelebrationController extends Controller
     public function show($slug)
     {
         $celebration = Celebration::where('slug', $slug)
-            ->with(['user', 'wishes.user', 'gifts.platformGift', 'comments.user', 'template', 'frame', 'contributions'])
+            ->with(['user', 'wishes.user', 'gifts.platformGift', 'comments.user', 'template', 'frame', 'contributions.wish'])
             ->firstOrFail();
 
         $isOwner = Auth::check() && Auth::id() === $celebration->user_id;
@@ -301,6 +301,19 @@ class CelebrationController extends Controller
                 $row->currency ?: $base,
                 $visitorCurrency
             ),
+            // What was given, in its own words: a gift has a name and a
+            // quantity, a registry contribution has the item it went towards.
+            'kind'   => $prefix === 'gift-' ? 'gift' : 'wish',
+            'item'   => $prefix === 'gift-'
+                ? ($row->platformGift?->gift_name ?? 'a gift')
+                : ($row->wish?->name ?? 'the registry'),
+            'qty'    => $prefix === 'gift-' ? max(1, (int) ($row->quantity ?? 1)) : 1,
+            'image'  => $prefix === 'gift-' && $row->platformGift?->gift_image_url
+                ? asset('storage/' . $row->platformGift->gift_image_url)
+                : null,
+            'icon'   => $prefix === 'gift-'
+                ? ($row->platformGift?->gift_icon ?: 'mdi-gift-outline')
+                : 'mdi-hand-heart-outline',
             'when'   => $row->created_at,
         ];
 
@@ -320,6 +333,20 @@ class CelebrationController extends Controller
                 'name'  => $group->first()->name,
                 'count' => $group->count(),
                 'total' => $group->sum('amount'),
+                // Two cupcakes and a cake read as "Cupcake × 2, Cake", so the
+                // same gift sent twice is one line rather than two.
+                'items' => $group
+                    ->groupBy('item')
+                    ->map(fn ($rows, $item) => [
+                        'name'  => (string) $item,
+                        'qty'   => (int) $rows->sum('qty'),
+                        'kind'  => $rows->first()->kind,
+                        'image' => $rows->first()->image,
+                        'icon'  => $rows->first()->icon,
+                    ])
+                    ->sortByDesc('qty')
+                    ->values()
+                    ->all(),
                 'when'  => $group->max('when'),
             ])
             ->sortByDesc('when')
@@ -425,6 +452,8 @@ public function storeComment(Request $request)
         $request->validate([
             'celebration_id' => ['required', 'exists:celebrations,id'],
             'anonymous' => ['nullable', 'boolean'],
+            // Who it is from, when they are not signed in.
+            'guest_name' => ['nullable', 'string', 'max:120'],
             'comment' => [
                 'nullable',
                 'string',
@@ -480,10 +509,16 @@ public function storeComment(Request $request)
 
             'user_id' =>  Auth::id() ?? null,
 
-            // A wish from someone not signed in is posted as Anonymous. The
-            // playful stand-in names this used to pick read as real people,
-            // which made an empty page look busier than it was.
-            'guest_name' => $fullname ?? 'Anonymous',
+            /*
+             * Whose wish it is.
+             *
+             * A signed-in person posts under their account, whatever the form
+             * sent — nobody signs somebody else's name. A guest is whoever
+             * they said they were, and only a guest who asked to be anonymous,
+             * or left the box empty, lands as Anonymous.
+             */
+            'guest_name' => $fullname
+                ?? ($anonymous ? 'Anonymous' : (trim((string) $request->guest_name) ?: 'Anonymous')),
 
             'guest_email' => $guest_email,
 

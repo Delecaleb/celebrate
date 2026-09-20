@@ -199,6 +199,12 @@
         font-size: 0.84rem; white-space: nowrap;
         overflow: hidden; text-overflow: ellipsis;
     }
+    /* Sized to the row so the strip never changes height as gifts scroll. */
+    .give-ticker-img {
+        width: 1.15rem; height: 1.15rem; flex-shrink: 0;
+        object-fit: contain; border-radius: 4px;
+    }
+    .give-ticker-icon { color: var(--primary); font-size: 1rem; line-height: 1; flex-shrink: 0; }
     .give-ticker-row b { font-weight: 700; }
     .give-ticker-row span { font-weight: 800; color: var(--primary); }
     .give-ticker-row em { font-style: normal; color: var(--muted-2); }
@@ -210,6 +216,33 @@
         padding: 0.2rem 0.1rem;
     }
     .composer textarea:focus { outline: none; }
+    /* Floating label. The label starts where the text will be and rises out of
+       the way once the field has something in it — so the question the field is
+       asking survives being answered, which a placeholder does not. */
+    .ff { position: relative; margin-bottom: 0.35rem; }
+    .composer .ff-control,
+    .ff-control {
+        width: 100%; border: 0; border-bottom: 1px solid var(--line);
+        font-family: inherit; background: transparent; color: var(--ink);
+        font-size: 0.92rem; line-height: 1.55; resize: none;
+        padding: 1.15rem 0.1rem 0.45rem;
+    }
+    .ff-control:focus { outline: none; border-bottom-color: var(--primary); }
+    .ff-label {
+        position: absolute; left: 0.1rem; top: 0.95rem;
+        font-size: 0.92rem; color: var(--muted-2); pointer-events: none;
+        transform-origin: 0 0; transition: transform 0.13s ease, color 0.13s ease;
+    }
+    /* Empty and unfocused: sitting where the text goes. Anything else: risen. */
+    .ff-control:not(:placeholder-shown) + .ff-label,
+    .ff-control:focus + .ff-label {
+        transform: translateY(-0.95rem) scale(0.76);
+        color: var(--muted);
+    }
+    .ff-control:focus + .ff-label { color: var(--primary); }
+
+    .composer-name { font-weight: 600; font-size: 0.86rem; }
+    .composer-name:read-only { color: var(--muted); cursor: default; }
     .composer-tools {
         display: flex; align-items: center; gap: 0.3rem;
         margin-top: 0.5rem; padding-top: 0.65rem; border-top: 1px solid var(--line);
@@ -730,15 +763,38 @@
                 {{-- ── who has given ──────────────────────────────────── --}}
                 @if ($supporters->isNotEmpty())
                     @php
-                        // Newest first, which is what the controller already
-                        // sorts by — the line reads as "who just gave".
-                        $ticker = $supporters->take(24)->map(fn ($s) => [
-                            'name'   => $s->name,
-                            'amount' => $visitorSymbol . number_format(
-                                $s->total,
-                                fmod((float) $s->total, 1) === 0.0 ? 0 : 2
-                            ),
-                        ])->values();
+                        /*
+                         * Newest first, which is what the controller already
+                         * sorts by — the line reads as "who just gave".
+                         *
+                         * What they gave, not what it cost: "Cake × 2" means
+                         * something to a celebrant, and to everyone else
+                         * reading the page, in a way that a naira figure on a
+                         * public page does not.
+                         */
+                        $ticker = $supporters->take(24)->map(function ($s) {
+                            $items = collect($s->items ?? []);
+
+                            $shown = $items->take(2)
+                                ->map(fn ($i) => $i['qty'] > 1 ? "{$i['name']} × {$i['qty']}" : $i['name'])
+                                ->implode(', ');
+
+                            $more = max(0, $items->count() - 2);
+
+                            $lead = $items->first();
+
+                            return [
+                                'name'  => $s->name,
+                                // The picture of the thing given, or its icon.
+                                'image' => $lead['image'] ?? null,
+                                'icon'  => $lead['icon'] ?? 'mdi-gift-outline',
+                                // Gifts are sent; money towards a registry item is given.
+                                'verb' => $items->isNotEmpty() && $items->every(fn ($i) => $i['kind'] === 'wish')
+                                    ? 'gave towards'
+                                    : 'sent',
+                                'what' => $shown . ($more > 0 ? " +{$more} more" : ''),
+                            ];
+                        })->values();
                     @endphp
 
                     <div class="give-ticker"
@@ -771,16 +827,25 @@
                                 }, 600);
                             }
                          }">
-                        <i class="mdi mdi-gift-outline" aria-hidden="true"></i>
+
                         <div class="give-ticker-win">
                             <div class="give-ticker-track"
                                  :data-still="still ? '' : null"
                                  :style="`transform: translateY(-${i * 1.3}rem)`">
                                 <template x-for="(row, n) in rows" :key="n">
                                     <div class="give-ticker-row">
+                                        {{-- The gift itself, where a generic
+                                             parcel icon used to sit. --}}
+                                        <template x-if="row.image">
+                                            <img class="give-ticker-img" :src="row.image" alt="" loading="lazy">
+                                        </template>
+                                        <template x-if="! row.image">
+                                            <i class="mdi give-ticker-icon" :class="row.icon" aria-hidden="true"></i>
+                                        </template>
+
                                         <b x-text="row.name"></b>
-                                        <em>gave</em>
-                                        <span x-text="row.amount"></span>
+                                        <em x-text="row.verb"></em>
+                                        <span x-text="row.what"></span>
                                     </div>
                                 </template>
                             </div>
@@ -898,8 +963,30 @@
                             </div>
 
                             <form @submit.prevent="handleSubmit">
-                                <textarea x-model="message" rows="2"
-                                          placeholder="Write {{ $celebration->celebrant_name }} a message…"></textarea>
+                                {{-- Who it is from. Filled in already for anyone signed
+                                     in, and the one thing that keeps the wall from
+                                     filling up with "Anonymous".
+
+                                     Both fields label themselves: the label sits in the
+                                     field until there is something in it, then rises and
+                                     stays — so nobody is left looking at text they can
+                                     no longer read the purpose of. --}}
+                                <div class="ff">
+                                    <input type="text" id="wish-name" class="ff-control composer-name"
+                                           x-model="guestName"
+                                           maxlength="120"
+                                           placeholder=" "
+                                           @if(auth()->check()) readonly title="You are posting as your account" @endif>
+                                    <label for="wish-name" class="ff-label">Your name</label>
+                                </div>
+
+                                <div class="ff">
+                                    <textarea id="wish-message" class="ff-control" x-model="message" rows="2"
+                                              placeholder=" "></textarea>
+                                    <label for="wish-message" class="ff-label">
+                                        Message for {{ $celebration->celebrant_name ?? 'the celebrant' }}
+                                    </label>
+                                </div>
                                 <div class="composer-tools">
                                     {{-- Video wishes hidden for now. Remove this comment
                                          wrapper to bring the record button back; the
@@ -1479,6 +1566,9 @@ $photoBookComments = $celebration->comments
 <script>
     window.CelebrationConfig = {
         isAuthenticated: @json(auth()->check()),
+        // Prefills the composer's name box, so a signed-in person never types
+        // their own name to leave a wish.
+        viewerName:      @json(auth()->check() ? trim(auth()->user()->first_name . ' ' . auth()->user()->last_name) : ''),
         celebrationId:   {{ $celebration->id }},
         commentStoreUrl: "{{ route('celebration.comment.store') }}",
         wishesUrl:       "{{ route('celebrant.create-wishes') }}",
