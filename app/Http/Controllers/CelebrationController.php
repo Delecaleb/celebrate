@@ -449,11 +449,20 @@ public function storeComment(Request $request)
 {
     try {
 
+        // Deliberately anonymous, or signed in and posting under the account —
+        // either way the name box has nothing to say. Anybody else has to sign
+        // their wish: the rule the form states is enforced here too.
+        $wantsAnonymity = filter_var($request->input('anonymous'), FILTER_VALIDATE_BOOLEAN);
+
         $request->validate([
             'celebration_id' => ['required', 'exists:celebrations,id'],
             'anonymous' => ['nullable', 'boolean'],
             // Who it is from, when they are not signed in.
-            'guest_name' => ['nullable', 'string', 'max:120'],
+            'guest_name' => [
+                Auth::check() || $wantsAnonymity ? 'nullable' : 'required',
+                'string',
+                'max:120',
+            ],
             'comment' => [
                 'nullable',
                 'string',
@@ -473,12 +482,13 @@ public function storeComment(Request $request)
                 'max:20480',
                 'required_without_all:comment,image'
             ]
+        ], [
+            // Said the way the composer says it, since this is what a guest
+            // sees if the form is bypassed.
+            'guest_name.required' => 'Please enter your name so the celebrant knows who this is from.',
         ]);
 
-        $anonymous = filter_var(
-            $request->anonymous,
-            FILTER_VALIDATE_BOOLEAN
-        );
+        $anonymous = $wantsAnonymity;
 
         $user = Auth::user() ?? null;  
         $fullname = $user ? $user->first_name . ' ' . $user->last_name : null;

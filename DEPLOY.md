@@ -88,7 +88,7 @@ That one line drives:
 | `payments:reconcile` | every 10 min | payments left pending by a missed webhook are never settled |
 | `mail:celebration-reminders` | 08:00 daily | guests are not reminded |
 | `mail:celebration-countdowns` | 09:00 daily | owners are not reminded |
-| `mail:gifting-reports` | Mon 10:00, 1st monthly | no gifting reports |
+| `mail:event-reports` | daily 11:00 | celebrants never hear how their day went |
 | `emails:send` | every minute | **nothing is emailed at all** — see §9 |
 
 ---

@@ -240,6 +240,8 @@
         color: var(--muted);
     }
     .ff-control:focus + .ff-label { color: var(--primary); }
+    /* A wish signed by nobody cannot be thanked, so the name is asked for. */
+    .ff-req { color: var(--primary); margin-left: 0.15rem; }
 
     .composer-name { font-weight: 600; font-size: 0.86rem; }
     .composer-name:read-only { color: var(--muted); cursor: default; }
@@ -485,6 +487,55 @@
     }
     .set-colour-preview strong { font-size: 1.2rem; }
 
+    /* a photo, opened */
+    .lightbox {
+        position: fixed; inset: 0; z-index: 120;
+        display: flex; align-items: center; justify-content: center;
+        padding: 5vmin;
+        /* The page blurs out behind the photo rather than going black: the
+           celebration is still there, just out of focus. Barely any tint —
+           only enough to hold the photo off a pale page. */
+        background: rgba(22, 18, 32, 0.1);
+        backdrop-filter: blur(16px) saturate(115%);
+        -webkit-backdrop-filter: blur(16px) saturate(115%);
+        animation: lightbox-in 0.16s ease-out;
+    }
+    /* Older browsers get a dim instead, since with no blur the photo would sit
+       on top of a legible page. */
+    @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+        .lightbox { background: rgba(22, 18, 32, 0.78); }
+    }
+    /* display:flex beats the hidden attribute on its own, so closing the photo
+       used to leave the black sheet sitting over the page. */
+    .lightbox[hidden] { display: none; }
+    .lightbox-panel {
+        position: relative;
+        display: flex;
+        /* A photo, not a wall of photo: the page stays visible around it. */
+        max-width: min(560px, 100%);
+        max-height: 100%;
+    }
+    .lightbox-img {
+        max-width: 100%; max-height: min(76vh, 100%);
+        border-radius: 12px; object-fit: contain;
+        /* Reads as a print laid over the blur, so a pale photo still has an
+           edge to it. */
+        border: 3px solid rgba(255, 255, 255, 0.85);
+        box-shadow: 0 18px 50px rgba(18, 14, 28, 0.3);
+    }
+    .lightbox-close {
+        position: absolute; top: 0.55rem; right: 0.55rem;
+        display: flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; border: 0; border-radius: 999px; cursor: pointer;
+        background: rgba(18, 14, 26, 0.62); color: #fff; font-size: 1.15rem;
+        backdrop-filter: blur(4px);
+    }
+    .lightbox-close:hover { background: rgba(18, 14, 26, 0.85); }
+    @keyframes lightbox-in { from { opacity: 0 } to { opacity: 1 } }
+
+    /* Only say it is tappable where it actually is. */
+    .zoomable { cursor: zoom-in; }
+
     /* empty */
     .cel-empty { text-align: center; padding: 3rem 1rem; }
     .cel-empty i { font-size: 2rem; color: var(--muted-2); }
@@ -650,14 +701,14 @@
                 <div class="swiper-wrapper">
                     @foreach($coverPhotos as $photo)
                         <div class="swiper-slide">
-                            <img src="{{ asset('storage/'.$photo) }}" alt="">
+                            <img class="zoomable" src="{{ asset('storage/'.$photo) }}" alt="Cover photo">
                         </div>
                     @endforeach
                 </div>
                 <div class="swiper-pagination"></div>
             </div>
         @elseif(count($coverPhotos) === 1)
-            <img src="{{ asset('storage/'.$coverPhotos[0]) }}" alt="">
+            <img class="zoomable" src="{{ asset('storage/'.$coverPhotos[0]) }}" alt="Cover photo">
         @elseif($isOwner)
             {{-- An empty cover is the first thing the owner should fix, so for
                  them the placeholder is the button: it opens the same picker
@@ -898,7 +949,10 @@
 
                             @if($mediaSrc)
                                 @if($comment->media_type === 'local-image')
-                                    <div class="msg-media"><img src="{{ $mediaSrc }}" alt=""></div>
+                                    <div class="msg-media">
+                                        <img class="zoomable" src="{{ $mediaSrc }}"
+                                             alt="Photo from {{ $commentAuthor }}" title="Tap to see the whole photo">
+                                    </div>
                                 @elseif($comment->media_type === 'video')
                                     <div class="vid-tile mt-3 group"
                                          x-data="{ playing: false }"
@@ -963,9 +1017,10 @@
                             </div>
 
                             <form @submit.prevent="handleSubmit">
-                                {{-- Who it is from. Filled in already for anyone signed
-                                     in, and the one thing that keeps the wall from
-                                     filling up with "Anonymous".
+                                {{-- Who it is from. Required: a wish nobody signed cannot be
+                                     thanked afterwards, and it is the one thing that keeps the
+                                     wall from filling up with "Anonymous". Filled in already
+                                     for anyone signed in, who cannot type over it.
 
                                      Both fields label themselves: the label sits in the
                                      field until there is something in it, then rises and
@@ -975,9 +1030,10 @@
                                     <input type="text" id="wish-name" class="ff-control composer-name"
                                            x-model="guestName"
                                            maxlength="120"
+                                           required
                                            placeholder=" "
                                            @if(auth()->check()) readonly title="You are posting as your account" @endif>
-                                    <label for="wish-name" class="ff-label">Your name</label>
+                                    <label for="wish-name" class="ff-label">Your name<span class="ff-req" aria-hidden="true">*</span></label>
                                 </div>
 
                                 <div class="ff">
@@ -1051,7 +1107,7 @@
                                 @if($funded)<span class="reg-flag">Got it</span>@endif
                                 <span class="reg-img">
                                     @if($wish->wish_image)
-                                        <img src="{{ asset('storage/'.$wish->wish_image) }}" alt="">
+                                        <img src="{{ asset('storage/'.$wish->wish_image) }}" alt="{{ $wish->name }}">
                                     @else
                                         <i class="mdi mdi-gift-outline"></i>
                                     @endif
@@ -1262,7 +1318,7 @@
                             <div class="set-photos" style="margin-top:0.75rem">
                                 @foreach($coverPhotos as $photo)
                                     <div class="set-photo" :class="removing === '{{ $photo }}' && 'is-removing'">
-                                        <img src="{{ asset('storage/'.$photo) }}" alt="Cover photo {{ $loop->iteration }}">
+                                        <img class="zoomable" src="{{ asset('storage/'.$photo) }}" alt="Cover photo {{ $loop->iteration }}">
                                         @if($loop->first)
                                             <span class="set-photo-badge">Main</span>
                                         @endif

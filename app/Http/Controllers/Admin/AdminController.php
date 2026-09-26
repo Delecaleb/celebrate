@@ -39,11 +39,19 @@ class AdminController extends Controller
     public function users(Request $request)
     {
         $query = User::withCount('celebrations')
-            ->when($request->search, fn ($q) =>
-                $q->where('first_name', 'like', "%{$request->search}%")
-                  ->orWhere('last_name',  'like', "%{$request->search}%")
-                  ->orWhere('email',      'like', "%{$request->search}%")
-            )
+            // Grouped: without the closure the orWheres escape the filters
+            // below, and a search with a status picked ignored the status.
+            ->when($request->search, fn ($q) => $q->where(function ($w) use ($request) {
+                $term = "%{$request->search}%";
+
+                $w->where('first_name', 'like', $term)
+                  ->orWhere('last_name', 'like', $term)
+                  ->orWhere('email', 'like', $term)
+                  // Numbers are stored as +2348…, so a search for 0803… finds
+                  // nothing: match on the digits either way round.
+                  ->orWhere('phone', 'like', $term)
+                  ->orWhere('phone', 'like', '%' . ltrim(preg_replace('/\D/', '', $request->search), '0') . '%');
+            }))
             ->when($request->type, fn ($q) => $q->where('account_type', $request->type))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->latest();

@@ -254,25 +254,21 @@ function wishForm() {
         isAuthenticated: window.CelebrationConfig.isAuthenticated,
 
         handleSubmit() {
+            // A wish signed by nobody cannot be thanked afterwards, so the name
+            // is asked for before anything else — and said, rather than left to
+            // the browser's own bubble, since the field sits in a sheet.
+            if (! this.guestName.trim()) {
+                window.showAlert('Please enter your name so the celebrant knows who this is from.', 'warning');
+                document.getElementById('wish-name')?.focus();
+                return;
+            }
+
             if (!this.message.trim() && !this.commentImage && !this.commentVideo) {
                 window.showAlert('Please enter a message, record a video, or select an image.', 'warning');
                 return;
             }
 
-            if (this.isAuthenticated) {
-                this.submitWish();
-                return;
-            }
-
-            // A guest who has said who they are does not need to be asked
-            // again; the sign-in panel is for anyone who left it blank.
-            if (this.guestName.trim()) {
-                this.submitWish();
-                return;
-            }
-
-            this.showGuestModal = true;
-            this.tab = 'welcome';
+            this.submitWish();
         },
 
         saveDraft() {

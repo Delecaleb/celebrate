@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CelebrateMi — logo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --violet:#7C3AED; --amber:#F59E0B; --ink:#16121F; --line:#e5e2ee; --muted:#6d6683; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:3rem 2rem 5rem; font-family:'Plus Jakarta Sans',system-ui,sans-serif; color:var(--ink); background:#faf8fe; }
+  h1 { font-family:Outfit,sans-serif; font-size:2rem; letter-spacing:-.03em; margin:0 0 .3rem; }
+  .sub { color:var(--muted); margin:0 0 2.5rem; font-size:.95rem; }
+  h2 { font-family:Outfit,sans-serif; font-size:.78rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:2.5rem 0 .9rem; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:18px; padding:2rem; }
+  .dark { background:var(--ink); border-color:#2b2338; }
+  .row { display:flex; align-items:center; gap:2.5rem; flex-wrap:wrap; }
+  .sizes { display:flex; align-items:flex-end; gap:2rem; flex-wrap:wrap; }
+  .size { text-align:center; }
+  .size span { display:block; margin-top:.6rem; font-size:.7rem; color:var(--muted); }
+  .swatch { width:74px; height:74px; border-radius:12px; border:1px solid var(--line); }
+  .files { font-size:.85rem; line-height:2; color:var(--muted); }
+  .files code { background:#f1eff6; padding:.15rem .4rem; border-radius:5px; color:var(--ink); }
+  .mono { color:var(--violet); }
+  .sub code { background:#f1eff6; padding:.1rem .35rem; border-radius:5px; font-size:.85em; }
+</style>
+</head>
+<body>
+
+<h1>CelebrateMi</h1>
+<p class="sub">The mark is <code>mdi-party-popper</code> from Material Design Icons, unaltered, white on the brand violet &mdash; the same glyph sitting beside every celebration in the app, so the logo and the interface say one thing. Nothing here is hand-drawn: to update it, take the path again from <code>@mdi/svg</code>.</p>
+
+<h2>Lockup</h2>
+<div class="card row">
+  <img src="celebratemi-logo.svg" alt="CelebrateMi logo" width="280">
+</div>
+<div class="card dark row" style="margin-top:1rem">
+  <img src="celebratemi-logo-reversed.svg" alt="CelebrateMi logo, reversed" width="280">
+</div>
+
+<h2>The mark, at the sizes it has to survive</h2>
+<div class="card sizes">
+  <div class="size"><img src="celebratemi-mark.svg" width="96" alt=""><span>96px</span></div>
+  <div class="size"><img src="celebratemi-mark.svg" width="48" alt=""><span>48px</span></div>
+  <div class="size"><img src="celebratemi-mark.svg" width="32" alt=""><span>32px</span></div>
+  <div class="size"><img src="celebratemi-mark.svg" width="20" alt=""><span>20px</span></div>
+  <div class="size"><img src="celebratemi-favicon.svg" width="16" alt=""><span>16px (favicon)</span></div>
+</div>
+
+<h2>App icon</h2>
+<div class="card sizes">
+  <div class="size"><img src="celebratemi-icon.svg" width="120" alt=""><span>120px</span></div>
+  <div class="size"><img src="celebratemi-icon.svg" width="60" alt=""><span>60px</span></div>
+  <div class="size"><img src="celebratemi-icon.svg" width="40" alt=""><span>40px</span></div>
+</div>
+
+<h2>One colour</h2>
+<div class="card sizes">
+  <div class="size mono"><img src="celebratemi-mark-mono.svg" width="72" alt=""><span>currentColor</span></div>
+  <div class="size" style="color:var(--ink)"><img src="celebratemi-mark-mono.svg" width="72" alt=""><span>ink</span></div>
+</div>
+
+<h2>Colours</h2>
+<p class="sub" style="margin:-.4rem 0 .9rem">The mark itself is violet and white. The rest is the palette it lives in.</p>
+<div class="card row">
+  <div><div class="swatch" style="background:#7C3AED"></div><p class="files">#7C3AED</p></div>
+  <div><div class="swatch" style="background:#F59E0B"></div><p class="files">#F59E0B</p></div>
+  <div><div class="swatch" style="background:#16121F"></div><p class="files">#16121F</p></div>
+  <div><div class="swatch" style="background:#E11D48"></div><p class="files">#E11D48</p></div>
+  <div><div class="swatch" style="background:#22C55E"></div><p class="files">#22C55E</p></div>
+  <div><div class="swatch" style="background:#38BDF8"></div><p class="files">#38BDF8</p></div>
+</div>
+
+<h2>Files</h2>
+<div class="card files">
+  <code>celebratemi-logo.svg</code> — mark plus name, for the site header<br>
+  <code>celebratemi-logo-reversed.svg</code> — the same on dark<br>
+  <code>celebratemi-mark.svg</code> — the symbol alone<br>
+  <code>celebratemi-icon.svg</code> — app icon, violet tile<br>
+  <code>celebratemi-favicon.svg</code> — drawn larger, for 16px<br>
+  <code>celebratemi-mark-mono.svg</code> — one colour, inherits <code>currentColor</code><br>
+  <br>
+  The name in the lockups is live text set in Outfit. Convert it to outlines before print.<br>
+  The popper glyph is Material Design Icons, licensed Apache 2.0.
+</div>
+
+</body>
+</html>

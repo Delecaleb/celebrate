@@ -24,6 +24,12 @@
                 {{ trim(($celebration->user->first_name ?? '') . ' ' . ($celebration->user->last_name ?? '')) ?: '—' }}
             </p>
             <p style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem">{{ $celebration->user->email ?? '' }}</p>
+            @if ($celebration->user?->phone)
+                <p style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem">
+                    <i class="mdi mdi-phone-outline"></i>
+                    <a href="tel:{{ $celebration->user->phone }}" style="color:inherit">{{ \App\Support\PhoneNumbers::pretty($celebration->user->phone) }}</a>
+                </p>
+            @endif
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="mdi mdi-format-list-checks"></i></div>

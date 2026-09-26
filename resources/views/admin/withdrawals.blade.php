@@ -62,6 +62,12 @@
                                 <div>
                                     <div class="chip-name">{{ trim(($wd->user->first_name ?? '') . ' ' . ($wd->user->last_name ?? '')) ?: $wd->user->name }}</div>
                                     <div class="chip-email">{{ $wd->user->email }}</div>
+                                    @if ($wd->user->phone)
+                                        <div class="chip-email" style="font-variant-numeric:tabular-nums">
+                                            <i class="mdi mdi-phone-outline"></i>
+                                            <a href="tel:{{ $wd->user->phone }}" style="color:inherit">{{ \App\Support\PhoneNumbers::pretty($wd->user->phone) }}</a>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </td>

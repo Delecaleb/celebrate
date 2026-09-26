@@ -125,9 +125,16 @@ final class PhoneNumbers
 
         foreach (config('phone.countries', []) as [$iso, $name, $dial]) {
             if (str_starts_with($digits, $dial)) {
-                $rest = substr($digits, strlen($dial));
+                $groups = str_split(substr($digits, strlen($dial)), 3);
 
-                return '+' . $dial . ' ' . trim(chunk_split($rest, 3, ' '));
+                // A last group of one digit reads as a typo — "123 456 7" —
+                // so it joins the group before it instead.
+                if (count($groups) > 1 && strlen(end($groups)) === 1) {
+                    $last = array_pop($groups);
+                    $groups[count($groups) - 1] .= $last;
+                }
+
+                return '+' . $dial . ' ' . implode(' ', $groups);
             }
         }
 

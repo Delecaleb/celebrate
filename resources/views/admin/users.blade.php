@@ -16,7 +16,7 @@
         <input type="text"
                name="search"
                value="{{ request('search') }}"
-               placeholder="Search name or email…"
+               placeholder="Search name, email or phone…"
                class="filter-input">
         <select name="type" class="filter-select">
             <option value="">All types</option>
@@ -65,6 +65,12 @@
                                         {{ trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')) ?: $u->name }}
                                     </div>
                                     <div class="chip-email">{{ $u->email }}</div>
+                                    @if ($u->phone)
+                                        <div class="chip-email" style="font-variant-numeric:tabular-nums">
+                                            <i class="mdi mdi-phone-outline"></i>
+                                            <a href="tel:{{ $u->phone }}" style="color:inherit">{{ \App\Support\PhoneNumbers::pretty($u->phone) }}</a>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </td>
