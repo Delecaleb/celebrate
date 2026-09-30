@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\CelebrationController;
+use App\Http\Controllers\Api\CelebrationGuestController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GiftController;
@@ -113,6 +114,8 @@ Route::prefix('v1')->group(function () {
         Route::get('celebrations/{slug}/slug/check',   [CelebrationController::class, 'checkSlug']);
         Route::post('celebrations/{slug}/template',    [CelebrationController::class, 'applyTemplate']);
         Route::delete('celebrations/{slug}/template',  [CelebrationController::class, 'resetTemplate']);
+        // Invite from the phone's contacts — saved as pending SMS.
+        Route::post('celebrations/{slug}/invites',     [CelebrationGuestController::class, 'store']);
 
         // Registry
         Route::post('wishes',          [WishController::class, 'store']);

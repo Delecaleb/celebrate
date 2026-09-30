@@ -119,17 +119,43 @@ class DashboardController extends Controller
     /**
      * Discover — public, published pages belonging to other people.
      */
+    /**
+     * Public, published celebrations by other people — newest first, or with
+     * ?q= every one matching the words typed, by title, celebrant, description,
+     * page address or the owner's name. A search is not limited to the feed's
+     * first page: it looks across everything discoverable.
+     */
     public function discover(Request $request)
     {
+        $q = trim((string) $request->query('q', ''));
+
         $discover = Celebration::where('is_public', true)
             ->where('user_id', '!=', $request->user()->id)
             ->where('status', 'published')
             ->with('user')
-            ->withCount(['gifts', 'wishes'])
-            ->latest()
-            ->paginate(12);
+            ->withCount(['gifts', 'wishes']);
 
-        return CelebrationResource::collection($discover);
+        if ($q !== '') {
+            // Escape LIKE wildcards so "100%" searches for the text, not everything.
+            $like = '%'.addcslashes($q, '%_\\').'%';
+
+            $discover->where(function ($where) use ($like) {
+                $where->where('title', 'like', $like)
+                    ->orWhere('celebrant_name', 'like', $like)
+                    ->orWhere('description', 'like', $like)
+                    ->orWhere('slug', 'like', $like)
+                    ->orWhereHas('user', function ($user) use ($like) {
+                        $user->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('username', 'like', $like)
+                            ->orWhereRaw("concat_ws(' ', first_name, last_name) like ?", [$like]);
+                    });
+            });
+        }
+
+        return CelebrationResource::collection(
+            $discover->latest()->paginate($q !== '' ? 50 : 12)->appends(['q' => $q ?: null])
+        );
     }
 
     /**
