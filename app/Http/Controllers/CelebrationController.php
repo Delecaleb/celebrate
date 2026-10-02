@@ -89,9 +89,10 @@ class CelebrationController extends Controller
 
                 $uuid = (string) \Illuminate\Support\Str::uuid();
 
-                $firstName = explode(' ', $request->celebrantName)[0] ?? '--';
-
-                $lastName = explode(' ', $request->celebrantName)[1] ?? '--';
+                // One name is a complete name: no placeholder surname.
+                $nameParts = explode(' ', trim($request->celebrantName), 2);
+                $firstName = $nameParts[0];
+                $lastName  = $nameParts[1] ?? '';
 
                 $user = User::create([
                     'uuid' => $uuid,

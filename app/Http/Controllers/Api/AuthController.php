@@ -35,12 +35,13 @@ class AuthController extends Controller
             'phone'        => \App\Support\PhoneNumbers::rules(required: false),
         ]);
 
-        $fullname = explode(' ', $data['name'], 2);
+        // One name is a complete name: no invented surname for it.
+        $fullname = explode(' ', trim($data['name']), 2);
 
         $user = User::create([
             'uuid'       => str()->uuid(),
             'first_name' => $fullname[0],
-            'last_name'  => $fullname[1] ?? 'User',
+            'last_name'  => $fullname[1] ?? '',
             'email'      => $data['email'],
             'phone'      => $data['phone'] ?? null,
             'password'   => Hash::make($data['password']),

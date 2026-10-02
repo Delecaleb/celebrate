@@ -35,4 +35,12 @@ Schedule::command('mail:event-reports')->dailyAt('11:00');
 */
 Schedule::command('emails:send')->everyMinute()->withoutOverlapping();
 
+/*
+| Uploaded celebration videos, converted to a web-ready MP4 with a poster
+| still. Off the request, for the same reason as the mail: FFmpeg on a 50MB
+| upload would outlive the request that brought it. A couple per run, so a
+| burst of uploads cannot hog a shared host.
+*/
+Schedule::command('videos:process')->everyMinute()->withoutOverlapping();
+
 Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping();

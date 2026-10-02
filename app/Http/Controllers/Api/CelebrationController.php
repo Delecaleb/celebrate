@@ -13,6 +13,7 @@ use App\Models\Celebration;
 use App\Models\CelebrationTemplate;
 use App\Models\Frame;
 use App\Models\PlatformAvailableGift;
+use App\Support\CelebrationVideos;
 use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\WalletService;
 use Illuminate\Http\Request;
@@ -225,6 +226,44 @@ class CelebrationController extends Controller
         $celebration->update([
             'cover_photo' => count($paths) === 1 ? $paths[0] : json_encode($paths),
         ]);
+
+        return new CelebrationResource($celebration->fresh());
+    }
+
+    /**
+     * Upload the celebration's video. One per celebration; a new one replaces
+     * the old.
+     *
+     * This only stores the file. Converting it is done a moment later by
+     * videos:process, so the response comes back with the video "processing"
+     * and the app shows that until it turns "ready".
+     */
+    public function updateCoverVideo(Request $request, string $slug, CelebrationVideos $videos)
+    {
+        $celebration = $this->ownedBySlug($request, $slug);
+
+        $maxMb = (int) config('video.max_upload_mb');
+
+        $request->validate([
+            'video' => ['required', 'file', 'mimetypes:' . implode(',', config('video.mimetypes')), 'max:' . $maxMb * 1024],
+        ], [
+            'video.required'  => 'Choose a video to upload.',
+            // What PHP reports when the file is over its own upload limit.
+            'video.uploaded'  => "That video is too large. Keep it under {$maxMb}MB.",
+            'video.max'       => "That video is too large. Keep it under {$maxMb}MB.",
+            'video.mimetypes' => 'That file type is not supported. Upload an MP4, MOV or WebM video.',
+        ]);
+
+        $videos->accept($celebration, $request->file('video'));
+
+        return new CelebrationResource($celebration->fresh());
+    }
+
+    public function destroyCoverVideo(Request $request, string $slug, CelebrationVideos $videos)
+    {
+        $celebration = $this->ownedBySlug($request, $slug);
+
+        $videos->remove($celebration);
 
         return new CelebrationResource($celebration->fresh());
     }

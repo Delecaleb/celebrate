@@ -10,6 +10,18 @@ class Celebration extends Model
 {
     use HasFactory;
 
+    /**
+     * Deleting a celebration takes its video with it — the converted file, its
+     * poster, and any upload still waiting to be converted. On the model, so
+     * the app, the website and anything else that deletes one all do it.
+     */
+    protected static function booted(): void
+    {
+        static::deleted(function (Celebration $celebration) {
+            app(\App\Support\CelebrationVideos::class)->deleteFiles($celebration);
+        });
+    }
+
     protected $fillable = [
         'uuid',
         'user_id',

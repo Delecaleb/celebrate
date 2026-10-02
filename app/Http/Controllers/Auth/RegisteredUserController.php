@@ -50,7 +50,7 @@ class RegisteredUserController extends Controller
         $user = User::create([
             'uuid' => str()->uuid(),
             'first_name' => $fullname[0],
-            'last_name' => $fullname[1] ?? 'User',
+            'last_name' => $fullname[1] ?? '', // one name is a complete name
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),

@@ -109,6 +109,8 @@ Route::prefix('v1')->group(function () {
         Route::put('celebrations/{slug}',    [CelebrationController::class, 'update']);
         Route::delete('celebrations/{slug}', [CelebrationController::class, 'destroy']);
         Route::post('celebrations/{slug}/cover-photo', [CelebrationController::class, 'updateCoverPhoto']);
+        Route::post('celebrations/{slug}/cover-video',   [CelebrationController::class, 'updateCoverVideo']);
+        Route::delete('celebrations/{slug}/cover-video', [CelebrationController::class, 'destroyCoverVideo']);
         Route::post('celebrations/{slug}/frame',       [CelebrationController::class, 'updateFrame']);
         Route::post('celebrations/{slug}/slug',        [CelebrationController::class, 'updateSlug']);
         Route::get('celebrations/{slug}/slug/check',   [CelebrationController::class, 'checkSlug']);

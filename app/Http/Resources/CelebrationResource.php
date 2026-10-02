@@ -44,6 +44,15 @@ class CelebrationResource extends JsonResource
 
             'cover_photos' => $covers,
             'cover_photo'  => $covers[0] ?? null,
+
+            // The video is only offered once converted; until then the status
+            // says why there is none. The poster is the still shown before play.
+            'cover_video'         => $this->intro_video_status === 'ready' ? Media::url($this->intro_video) : null,
+            'cover_video_poster'  => Media::url($this->intro_video_poster),
+            'cover_video_status'  => $this->intro_video_status,
+            'cover_video_seconds' => $this->intro_video_seconds,
+            'cover_video_error'   => $this->intro_video_error,
+
             'theme_color'  => $this->theme_color,
             'font_style'   => $this->font_style,
             'custom_bg'    => $this->custom_bg,
