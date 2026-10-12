@@ -390,7 +390,7 @@ class CelebrationController extends Controller
                     isset($wish['image']) &&
                     $wish['image'] instanceof \Illuminate\Http\UploadedFile
                 ) {
-                    $imagePath = $wish['image']->store('wishlist', 'public');
+                    $imagePath = \App\Support\Images::store($wish['image'], 'wishlist');
                 }
 
                 $rawAmount = isset($wish['amount']) && $wish['amount'] !== '' ? (float) $wish['amount'] : null;
@@ -503,8 +503,7 @@ public function storeComment(Request $request)
         $media_type = '';
         $media_url = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')
-                ->store('comments', 'public');
+            $imagePath = \App\Support\Images::store($request->file('image'), 'comments');
             $media_type = 'local-image';
             $media_url = $imagePath;
         } elseif ($request->hasFile('video')) {
@@ -637,7 +636,7 @@ public function updateCoverPhoto(Request $request, $id)
 
         $paths = [];
         foreach ($files as $file) {
-            $paths[] = $file->store('covers', 'public');
+            $paths[] = \App\Support\Images::store($file, 'covers');
         }
 
         $this->saveCoverPhotos($celebration, array_merge($existing, $paths));

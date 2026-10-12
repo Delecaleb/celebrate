@@ -60,7 +60,7 @@ class CommentController extends Controller
 
         if ($request->hasFile('image')) {
             $mediaType = 'local-image';
-            $mediaUrl  = $request->file('image')->store('comments', 'public');
+            $mediaUrl  = \App\Support\Images::store($request->file('image'), 'comments');
         } elseif ($request->hasFile('video')) {
             $mediaType = 'video';
             $mediaUrl  = $request->file('video')->store('comments', 'public');

@@ -40,7 +40,7 @@ class CelebrantController extends Controller
         $photoMap = [];
         if ($request->hasFile('photos')) {
             foreach ($request->file('photos') as $photo) {
-                $path = $photo->store('celebrant_photos', 'public');
+                $path = \App\Support\Images::store($photo, 'celebrant_photos');
                 $photoMap[$photo->getClientOriginalName()] = $path;
             }
         }

@@ -26,7 +26,7 @@ class ProfileController extends Controller
             $this->discardPhoto($user);
         } elseif ($request->hasFile('photo')) {
             $old = $user->profile_photo;
-            $user->profile_photo = $request->file('photo')->store('avatars', 'public');
+            $user->profile_photo = \App\Support\Images::store($request->file('photo'), 'avatars', ['max' => 800]);
 
             // Only after the new one is safely stored.
             $this->deleteFile($old);

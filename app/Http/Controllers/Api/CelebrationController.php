@@ -218,7 +218,7 @@ class CelebrationController extends Controller
 
         $paths = [];
         foreach ($request->file('cover_photos') as $file) {
-            $paths[] = $file->store('covers', 'public');
+            $paths[] = \App\Support\Images::store($file, 'covers');
         }
 
         // Single photo stays a bare string, several become a JSON array — the
@@ -234,9 +234,9 @@ class CelebrationController extends Controller
      * Upload the celebration's video. One per celebration; a new one replaces
      * the old.
      *
-     * This only stores the file. Converting it is done a moment later by
-     * videos:process, so the response comes back with the video "processing"
-     * and the app shows that until it turns "ready".
+     * The app sends the finished file — an MP4 it has already trimmed to a
+     * minute and shrunk on the phone — with a poster it took itself. Both are
+     * checked against config/video.php and published at once.
      */
     public function updateCoverVideo(Request $request, string $slug, CelebrationVideos $videos)
     {
@@ -245,18 +245,120 @@ class CelebrationController extends Controller
         $maxMb = (int) config('video.max_upload_mb');
 
         $request->validate([
-            'video' => ['required', 'file', 'mimetypes:' . implode(',', config('video.mimetypes')), 'max:' . $maxMb * 1024],
+            'video'   => ['required', 'file', 'mimetypes:' . implode(',', config('video.mimetypes')), 'max:' . $maxMb * 1024],
+            // A still the app took from the video, for the poster.
+            'poster'  => ['nullable', 'image', 'max:4096'],
+            // The length the app measured, for a file whose header does not say.
+            'seconds' => ['nullable', 'numeric', 'min:0'],
         ], [
             'video.required'  => 'Choose a video to upload.',
             // What PHP reports when the file is over its own upload limit.
             'video.uploaded'  => "That video is too large. Keep it under {$maxMb}MB.",
             'video.max'       => "That video is too large. Keep it under {$maxMb}MB.",
-            'video.mimetypes' => 'That file type is not supported. Upload an MP4, MOV or WebM video.',
+            'video.mimetypes' => 'That file type is not supported. Upload an MP4 video.',
         ]);
 
-        $videos->accept($celebration, $request->file('video'));
+        $videos->accept($celebration, $request->file('video'), $request->file('poster'), $request->input('seconds'));
 
         return new CelebrationResource($celebration->fresh());
+    }
+
+    /**
+     * One piece of a video being uploaded in parallel chunks.
+     *
+     * The app cuts the file into ~1MB pieces and sends several at once, which
+     * on a long-latency connection is several times faster than one stream.
+     * Pieces wait on the private disk under the upload's id until
+     * completeCoverVideo() stitches them together.
+     */
+    public function uploadCoverVideoChunk(Request $request, string $slug)
+    {
+        $celebration = $this->ownedBySlug($request, $slug);
+
+        $data = $request->validate([
+            'upload_id' => ['required', 'uuid'],
+            'index'     => ['required', 'integer', 'min:0', 'max:255'],
+            'total'     => ['required', 'integer', 'min:1', 'max:256'],
+            'chunk'     => ['required', 'file', 'max:4096'],
+        ]);
+
+        $request->file('chunk')->storeAs(
+            $this->chunkDir($celebration->id, $data['upload_id']),
+            (string) $data['index'],
+            'local'
+        );
+
+        return response()->json(['received' => (int) $data['index']]);
+    }
+
+    /**
+     * All the pieces are up: put them together and treat the result exactly
+     * as a video that arrived in one go.
+     */
+    public function completeCoverVideo(Request $request, string $slug, CelebrationVideos $videos)
+    {
+        $celebration = $this->ownedBySlug($request, $slug);
+
+        $maxMb = (int) config('video.max_upload_mb');
+
+        $data = $request->validate([
+            'upload_id' => ['required', 'uuid'],
+            'total'     => ['required', 'integer', 'min:1', 'max:256'],
+            // Bytes the whole file should come to — proof nothing went missing.
+            'size'      => ['required', 'integer', 'min:1', 'max:' . $maxMb * 1024 * 1024],
+            'poster'    => ['nullable', 'image', 'max:4096'],
+            'seconds'   => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'size.max' => "That video is too large. Keep it under {$maxMb}MB.",
+        ]);
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+        $dir  = $this->chunkDir($celebration->id, $data['upload_id']);
+
+        for ($i = 0; $i < $data['total']; $i++) {
+            if (! $disk->exists("{$dir}/{$i}")) {
+                return response()->json(['message' => "Part {$i} of the video did not arrive. Please try the upload again."], 422);
+            }
+        }
+
+        $assembled = $disk->path("{$dir}/assembled.mp4");
+        $out = fopen($assembled, 'wb');
+        for ($i = 0; $i < $data['total']; $i++) {
+            $in = fopen($disk->path("{$dir}/{$i}"), 'rb');
+            stream_copy_to_stream($in, $out);
+            fclose($in);
+        }
+        fclose($out);
+
+        if (filesize($assembled) !== (int) $data['size']) {
+            $disk->deleteDirectory($dir);
+
+            return response()->json(['message' => 'The video did not arrive intact. Please try the upload again.'], 422);
+        }
+
+        $mime = (string) mime_content_type($assembled);
+        if (! in_array($mime, config('video.mimetypes'), true)) {
+            $disk->deleteDirectory($dir);
+
+            return response()->json(['message' => 'That file type is not supported. Upload an MP4 video.'], 422);
+        }
+
+        // From here it is an ordinary upload; accept() moves the file out of
+        // the chunk folder before that folder is removed.
+        $file = new \Illuminate\Http\UploadedFile($assembled, 'celebration.mp4', $mime, null, true);
+
+        try {
+            $videos->accept($celebration, $file, $request->file('poster'), $request->input('seconds'));
+        } finally {
+            $disk->deleteDirectory($dir);
+        }
+
+        return new CelebrationResource($celebration->fresh());
+    }
+
+    private function chunkDir(int $celebrationId, string $uploadId): string
+    {
+        return "video-chunks/{$celebrationId}/{$uploadId}";
     }
 
     public function destroyCoverVideo(Request $request, string $slug, CelebrationVideos $videos)

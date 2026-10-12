@@ -131,7 +131,7 @@ class AuthController extends Controller
 
         $user = $request->user();
         $user->update([
-            'profile_photo' => $request->file('photo')->store('avatars', 'public'),
+            'profile_photo' => \App\Support\Images::store($request->file('photo'), 'avatars', ['max' => 800]),
         ]);
 
         return new UserResource($user->fresh());

@@ -11,9 +11,8 @@ class Celebration extends Model
     use HasFactory;
 
     /**
-     * Deleting a celebration takes its video with it — the converted file, its
-     * poster, and any upload still waiting to be converted. On the model, so
-     * the app, the website and anything else that deletes one all do it.
+     * Deleting a celebration takes its video and poster with it. On the model,
+     * so the app, the website and anything else that deletes one all do it.
      */
     protected static function booted(): void
     {

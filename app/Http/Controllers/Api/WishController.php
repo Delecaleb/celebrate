@@ -77,7 +77,7 @@ class WishController extends Controller
                 'description'    => $item['description'] ?? null,
                 'wish_link'      => $item['wish_link'] ?? null,
                 'target_amount'  => $raw,
-                'wish_image'     => $image ? $image->store('wishlist', 'public') : null,
+                'wish_image'     => $image ? \App\Support\Images::store($image, 'wishlist') : null,
             ] + $amounts);
         }
 

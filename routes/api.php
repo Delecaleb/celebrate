@@ -110,6 +110,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('celebrations/{slug}', [CelebrationController::class, 'destroy']);
         Route::post('celebrations/{slug}/cover-photo', [CelebrationController::class, 'updateCoverPhoto']);
         Route::post('celebrations/{slug}/cover-video',   [CelebrationController::class, 'updateCoverVideo']);
+        // The same video in parallel pieces — much faster on a long-latency connection.
+        Route::post('celebrations/{slug}/cover-video/chunks',   [CelebrationController::class, 'uploadCoverVideoChunk']);
+        Route::post('celebrations/{slug}/cover-video/complete', [CelebrationController::class, 'completeCoverVideo']);
         Route::delete('celebrations/{slug}/cover-video', [CelebrationController::class, 'destroyCoverVideo']);
         Route::post('celebrations/{slug}/frame',       [CelebrationController::class, 'updateFrame']);
         Route::post('celebrations/{slug}/slug',        [CelebrationController::class, 'updateSlug']);
