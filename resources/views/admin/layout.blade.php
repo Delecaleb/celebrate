@@ -558,6 +558,13 @@
                     <span>Dashboard</span>
                 </a>
 
+                @if ($me?->hasPermission('analytics.view'))
+                    <a href="{{ route('admin.analytics') }}" class="nav-item {{ request()->routeIs('admin.analytics') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-chart-line"></i></div>
+                        <span>Visitors</span>
+                    </a>
+                @endif
+
                 @if ($me?->hasPermission('users.view'))
                     <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
                         <div class="nav-icon"><i class="mdi mdi-account-group"></i></div>

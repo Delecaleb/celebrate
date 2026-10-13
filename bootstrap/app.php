@@ -21,11 +21,19 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.can'      => \App\Http\Middleware\AdminCan::class,
             'admin.super'    => \App\Http\Middleware\AdminIsSuper::class,
             'not.impersonating' => \App\Http\Middleware\NotWhileImpersonating::class,
+            // For the one API route that is a page view (the celebration).
+            'track.visit'       => \App\Http\Middleware\TrackVisit::class,
         ]);
 
         // Every /api route resolves $request->user() through the token guard.
         $middleware->api(prepend: [
             \App\Http\Middleware\UseSanctumGuard::class,
+        ]);
+
+        // Counts visitors and gives each a cookie. Last in the group, so the
+        // session and the signed-in user are known by the time it runs.
+        $middleware->web(append: [
+            \App\Http\Middleware\TrackVisit::class,
         ]);
 
         // Gateways cannot hold a session token. These two verify the request

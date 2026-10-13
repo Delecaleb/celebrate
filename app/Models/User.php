@@ -49,6 +49,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_seen_at'      => 'datetime',
+        'discovered_at'     => 'datetime',
         'wallet_balance'    => 'decimal:2',
         'global_wallet_balance' => 'decimal:2',
         'email_notifications_enabled' => 'boolean',
@@ -83,6 +84,15 @@ class User extends Authenticatable
         return mb_strtoupper(mb_substr((string) $this->email, 0, 1)) ?: 'U';
     }
 
+    /**
+     * The celebration page this person opened before they had an account —
+     * the one that brought them here. Set at sign-up by App\Support\Visitors.
+     */
+    public function discoveredVia()
+    {
+        return $this->belongsTo(Celebration::class, 'discovered_via_celebration_id');
+    }
+
     public function celebrations()
     {
         return $this->hasMany(Celebration::class);
@@ -101,6 +111,12 @@ class User extends Authenticatable
     public function notifications()
     {
         return $this->hasMany(PlatformNotification::class);
+    }
+
+    /** Phones this account is signed in on, for push notifications. */
+    public function deviceTokens()
+    {
+        return $this->hasMany(DeviceToken::class);
     }
 
     public function subscriptions()

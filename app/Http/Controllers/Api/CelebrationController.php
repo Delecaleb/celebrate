@@ -56,7 +56,7 @@ class CelebrationController extends Controller
     public function show(Request $request, string $slug)
     {
         $celebration = Celebration::where('slug', $slug)
-            ->with(['user', 'wishes.user', 'gifts.platformGift', 'comments.user', 'template', 'frame', 'contributions'])
+            ->with(['user', 'wishes.user', 'gifts.platformGift', 'comments.user', 'comments.reactions', 'template', 'frame', 'contributions'])
             ->firstOrFail();
 
         $viewer  = $request->user();

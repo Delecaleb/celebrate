@@ -91,4 +91,14 @@ return [
         */
         'dev_ip' => env('LOCATION_DEV_IP', ''),
     ],
+
+    /*
+    | Expo's push service, which hands notifications on to FCM and APNs. The
+    | access token is optional until "enhanced push security" is switched on
+    | for the project on expo.dev — after that, sends without it are refused.
+    */
+    'expo' => [
+        'push_url'     => env('EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
+        'access_token' => env('EXPO_ACCESS_TOKEN'),
+    ],
 ];

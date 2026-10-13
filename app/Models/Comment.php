@@ -21,6 +21,9 @@ class Comment extends Model
         'is_approved',
         'like_count',
         'reply_count',
+        // The visitor who left it, so a guest's wish can be matched to the
+        // account they make later. See App\Support\Visitors.
+        'visitor_id',
     ];
 
     protected $casts = [
@@ -38,5 +41,15 @@ class Comment extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reactions()
+    {
+        return $this->morphMany(Reaction::class, 'reactionable');
+    }
+
+    public function wallReplies()
+    {
+        return $this->hasMany(WallReply::class);
     }
 }

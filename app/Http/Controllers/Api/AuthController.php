@@ -109,6 +109,8 @@ class AuthController extends Controller
             'country'    => ['sometimes', 'nullable', 'string', 'max:100'],
             'state'      => ['sometimes', 'nullable', 'string', 'max:100'],
             'city'       => ['sometimes', 'nullable', 'string', 'max:100'],
+            // For the birthday reminder two weeks out (push:reminders).
+            'date_of_birth' => ['sometimes', 'nullable', 'date', 'before:today', 'after:1900-01-01'],
         ]);
 
         $user->fill($data);

@@ -7,6 +7,7 @@ use App\Http\Resources\CommentResource;
 use App\Models\Celebration;
 use App\Models\Comment;
 use App\Models\Reaction;
+use App\Models\WallReply;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,9 +18,9 @@ use Illuminate\Support\Facades\DB;
  * is a Comment, while the Wish model is a *registry item* handled by
  * WishController.
  *
- * Replies live on WishController, not here: comment_replies.wish_id carries a
+ * Registry replies live on WishController: comment_replies.wish_id carries a
  * foreign key to wishes(id), so a reply can only ever hang off a registry item.
- * (comments.reply_count exists but nothing can legally populate it.)
+ * Replies to wall posts live in wall_replies and are handled here.
  */
 class CommentController extends Controller
 {
@@ -31,7 +32,7 @@ class CommentController extends Controller
         $celebration = Celebration::where('slug', $slug)->firstOrFail();
 
         return CommentResource::collection(
-            $celebration->comments()->with('user')->latest()->paginate(30)
+            $celebration->comments()->with(['user', 'reactions'])->latest()->paginate(30)
         );
     }
 
@@ -76,6 +77,9 @@ class CommentController extends Controller
             'celebration_id' => $request->celebration_id,
             // An anonymous post keeps no link back to the account that made it.
             'user_id'        => $anonymous ? null : $user?->id,
+            // The device it came from, so a guest's wish can be matched to an
+            // account made later. Not for anonymous posts: those stay unlinked.
+            'visitor_id'     => $anonymous ? null : \App\Support\Visitors::id($request),
             'guest_name'     => $name,
             'guest_email'    => $anonymous ? null : $user?->email,
             'message'        => $request->comment,
@@ -102,7 +106,7 @@ class CommentController extends Controller
     public function react(Request $request, Comment $comment)
     {
         $data = $request->validate([
-            'reaction_type' => ['required', 'string', 'max:30'],
+            'reaction_type' => ['required', 'in:love,celebrate,laugh,touched,fire,clap,like'],
         ]);
 
         $user = $request->user();
@@ -143,6 +147,56 @@ class CommentController extends Controller
             return ['reacted' => true, 'reaction_type' => $data['reaction_type']];
         });
 
-        return response()->json($result + ['like_count' => $comment->fresh()->like_count]);
+        return response()->json($result + [
+            'like_count' => $comment->fresh()->like_count,
+            'reactions'  => (object) $comment->reactions()->pluck('reaction_type')->countBy()->all(),
+        ]);
+    }
+
+    /** The thread under a wall post, oldest first so it reads as a conversation. */
+    public function replies(Comment $comment)
+    {
+        $replies = $comment->wallReplies()->with('user')->oldest()->get()->map(fn ($r) => self::reply($r));
+
+        return response()->json(['data' => $replies]);
+    }
+
+    /** Open to guests, like the post it answers. */
+    public function storeReply(Request $request, Comment $comment)
+    {
+        $data = $request->validate([
+            'message'    => ['required', 'string', 'max:500'],
+            'guest_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $user = $request->user();
+
+        $reply = DB::transaction(function () use ($comment, $data, $user) {
+            $reply = WallReply::create([
+                'comment_id' => $comment->id,
+                'user_id'    => $user?->id,
+                'guest_name' => $user
+                    ? trim($user->first_name.' '.$user->last_name)
+                    : (($data['guest_name'] ?? null) ?: self::GUEST_NAME),
+                'message'    => $data['message'],
+            ]);
+
+            $comment->increment('reply_count');
+
+            return $reply;
+        });
+
+        return response()->json(self::reply($reply->load('user')), 201);
+    }
+
+    private static function reply(WallReply $r): array
+    {
+        return [
+            'id'           => $r->id,
+            'message'      => $r->message,
+            'author'       => $r->user ? trim($r->user->first_name.' '.$r->user->last_name) : ($r->guest_name ?: 'Guest'),
+            'author_photo' => \App\Support\Media::url($r->user?->profile_photo),
+            'created_at'   => $r->created_at?->toIso8601String(),
+        ];
     }
 }

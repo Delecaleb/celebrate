@@ -33,6 +33,15 @@ class AppServiceProvider extends ServiceProvider
         // well ran it twice, and every new account got two welcome emails.
         User::observe(UserObserver::class);
 
+        // Activity → notifications (feed + push). See ActivityObserver.
+        $activity = new \App\Observers\ActivityObserver;
+        \App\Models\Comment::created(fn ($m) => $activity->commentCreated($m));
+        \App\Models\Reaction::created(fn ($m) => $activity->reactionCreated($m));
+        \App\Models\CommentReply::created(fn ($m) => $activity->replyCreated($m));
+        \App\Models\WallReply::created(fn ($m) => $activity->wallReplyCreated($m));
+        \App\Models\Gift::saved(fn ($m) => $activity->giftSaved($m));
+        \App\Models\WishContribution::saved(fn ($m) => $activity->contributionSaved($m));
+
         // Behind a load balancer the app often sees plain HTTP, which would put
         // http:// canonicals and og:url tags on an https site — search engines
         // treat those as a different, competing page.

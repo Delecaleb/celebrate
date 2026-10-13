@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CelebrationController;
 use App\Http\Controllers\Api\CelebrationGuestController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\GiftController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WishController;
@@ -68,10 +69,13 @@ Route::prefix('v1')->group(function () {
      | controllers call $request->user() and branch on null themselves, exactly
      | as the web controllers branch on Auth::check().
      */
-    Route::get('celebrations/{slug}',          [CelebrationController::class, 'show']);
+    // Counted as a page view, like the web page — see TrackVisit.
+    Route::get('celebrations/{slug}',          [CelebrationController::class, 'show'])->middleware('track.visit');
     Route::get('celebrations/{slug}/comments', [CommentController::class, 'index']);
     Route::post('comments',                 [CommentController::class, 'store']);
     Route::post('comments/{comment}/react', [CommentController::class, 'react']);
+    Route::get('comments/{comment}/replies',  [CommentController::class, 'replies']);
+    Route::post('comments/{comment}/replies', [CommentController::class, 'storeReply'])->middleware('throttle:20,1');
 
     // Replies hang off registry items, not wall posts — comment_replies.wish_id
     // is a foreign key to wishes(id).
@@ -94,12 +98,17 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/avatar',   [AuthController::class, 'updateAvatar']);
         Route::put('auth/password',  [AuthController::class, 'updatePassword']);
         Route::post('auth/email/resend-verification', [AuthController::class, 'resendVerification']);
+
+        // Push notifications — this phone's Expo token
+        Route::post('devices',   [DeviceController::class, 'store']);
+        Route::delete('devices', [DeviceController::class, 'destroy']);
         Route::delete('auth/account', [AuthController::class, 'destroy']);
 
         // Dashboard — one endpoint per rail item
         Route::get('dashboard/summary',       [DashboardController::class, 'summary']);
         Route::get('dashboard/celebrations',  [DashboardController::class, 'celebrations']);
         Route::get('dashboard/upcoming',      [DashboardController::class, 'upcoming']);
+        Route::get('dashboard/coming-up',     [DashboardController::class, 'comingUp']);
         Route::get('dashboard/activity',      [DashboardController::class, 'activity']);
         Route::post('dashboard/activity/read', [DashboardController::class, 'markActivityRead']);
         Route::get('dashboard/discover',      [DashboardController::class, 'discover']);
