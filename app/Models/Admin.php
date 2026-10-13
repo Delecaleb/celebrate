@@ -48,6 +48,11 @@ class Admin extends Authenticatable
             'group' => 'Celebrations',
             'note'  => 'Every celebration page, public or private, and its registry.',
         ],
+        'analytics.view' => [
+            'label' => 'View visitor analytics',
+            'group' => 'Celebrations',
+            'note'  => 'Visitors per day, the busiest celebration pages, and which pages brought each sign-up.',
+        ],
         'payments.view' => [
             'label' => 'View payments',
             'group' => 'Money',

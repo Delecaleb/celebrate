@@ -26,6 +26,12 @@ class UserResource extends JsonResource
             'account_type'  => $this->account_type,
             'currency'      => $this->currency,
             'email_verified' => $this->email_verified_at !== null,
+            // Private: this resource also describes page owners to everyone
+            // else, so the birthday is only ever sent to its owner.
+            'date_of_birth' => $this->when(
+                $request->user()?->id === $this->id,
+                fn () => $this->date_of_birth ? \Illuminate\Support\Carbon::parse($this->date_of_birth)->toDateString() : null,
+            ),
             'created_at'    => $this->created_at?->toIso8601String(),
         ];
     }

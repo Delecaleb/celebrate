@@ -25,6 +25,10 @@ Schedule::command('mail:celebration-notices')->dailyAt('07:00');
 */
 Schedule::command('mail:event-reports')->dailyAt('11:00');
 
+// Push reminders to the app: countdowns, nudges to past guests, birthday
+// prompts and one-year memories. Mid-morning, after the day's emails.
+Schedule::command('push:reminders')->dailyAt('10:00')->withoutOverlapping();
+
 // Settle payments a callback or webhook never confirmed. Ten minutes is short
 // enough that nobody waits long, and long enough that a slow gateway redirect
 // has already had its chance.

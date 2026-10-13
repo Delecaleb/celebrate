@@ -519,6 +519,9 @@ public function storeComment(Request $request)
 
             'user_id' =>  Auth::id() ?? null,
 
+            // Whose browser this came from, account or not.
+            'visitor_id' => \App\Support\Visitors::id($request),
+
             /*
              * Whose wish it is.
              *

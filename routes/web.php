@@ -232,6 +232,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('admin')->group(function () {
         Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
 
+        // Who is visiting, and which pages bring the sign-ups.
+        Route::get('/analytics', [\App\Http\Controllers\Admin\AdminAnalyticsController::class, 'visitors'])
+            ->middleware('admin.can:analytics.view')
+            ->name('analytics');
+
         // People
         Route::middleware('admin.can:users.view')->group(function () {
             Route::get('/users', [AdminController::class, 'users'])->name('users');

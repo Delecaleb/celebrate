@@ -74,6 +74,39 @@ class DashboardController extends Controller
     }
 
     /**
+     * Coming up — the next month of celebrations by people you have celebrated
+     * before: anyone whose page you left a wish, a gift or a contribution on.
+     * There is no follow feature; this is the relationship the data already has.
+     * (The app adds people from the phone's contacts on its side — the address
+     * book never leaves the phone.)
+     */
+    public function comingUp(Request $request)
+    {
+        $user = $request->user();
+
+        $celebrated = Celebration::query()
+            ->where('user_id', '!=', $user->id)
+            ->where(function ($q) use ($user) {
+                $q->whereHas('comments', fn ($c) => $c->where('user_id', $user->id))
+                  ->orWhereHas('gifts', fn ($g) => $g->where('sender_user_id', $user->id)->where('payment_status', 'paid'))
+                  ->orWhereHas('contributions', fn ($c) => $c->where('contributor_user_id', $user->id)->where('payment_status', 'paid'));
+            })
+            ->distinct()
+            ->pluck('user_id');
+
+        $coming = Celebration::whereIn('user_id', $celebrated)
+            ->where('status', 'published')
+            ->whereRaw('DATE(COALESCE(event_date, start_date)) BETWEEN ? AND ?', [today()->toDateString(), today()->addDays(30)->toDateString()])
+            ->orderByRaw('COALESCE(event_date, start_date) ASC')
+            ->with('user')
+            ->withCount(['gifts', 'wishes'])
+            ->limit(20)
+            ->get();
+
+        return CelebrationResource::collection($coming);
+    }
+
+    /**
      * Upcoming — published pages whose date has not passed. Same ordering rule
      * as the web page: whichever of event_date/start_date is set.
      */
