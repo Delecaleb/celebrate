@@ -77,6 +77,9 @@ Route::prefix('v1')->group(function () {
     Route::get('comments/{comment}/replies',  [CommentController::class, 'replies']);
     Route::post('comments/{comment}/replies', [CommentController::class, 'storeReply'])->middleware('throttle:20,1');
 
+    // The app's front door — guests browse before they sign up.
+    Route::get('dashboard/discover', [DashboardController::class, 'discover']);
+
     // Replies hang off registry items, not wall posts — comment_replies.wish_id
     // is a foreign key to wishes(id).
     Route::get('wishes/{wish}/replies',  [WishController::class, 'replies']);
@@ -111,7 +114,6 @@ Route::prefix('v1')->group(function () {
         Route::get('dashboard/coming-up',     [DashboardController::class, 'comingUp']);
         Route::get('dashboard/activity',      [DashboardController::class, 'activity']);
         Route::post('dashboard/activity/read', [DashboardController::class, 'markActivityRead']);
-        Route::get('dashboard/discover',      [DashboardController::class, 'discover']);
 
         // Celebrations the caller owns
         Route::post('celebrations',   [CelebrationController::class, 'store']);

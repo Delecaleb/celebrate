@@ -64,7 +64,8 @@ class CelebrationResource extends JsonResource
             'gifts_count'   => $this->whenCounted('gifts'),
             'wishes_count'  => $this->whenCounted('wishes'),
 
-            'owner' => new UserResource($this->whenLoaded('user')),
+            // Public view only — this resource is served to guests and other users.
+            'owner' => new PublicUserResource($this->whenLoaded('user')),
 
             'web_url'    => route('celebrations.show', $this->slug),
             'created_at' => $this->created_at?->toIso8601String(),
