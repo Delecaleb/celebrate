@@ -150,20 +150,22 @@ class DashboardController extends Controller
     }
 
     /**
-     * Discover — public, published pages belonging to other people.
-     */
-    /**
-     * Public, published celebrations by other people — newest first, or with
-     * ?q= every one matching the words typed, by title, celebrant, description,
-     * page address or the owner's name. A search is not limited to the feed's
-     * first page: it looks across everything discoverable.
+     * Discover — public, published celebrations by other people, newest first,
+     * or with ?q= every one matching the words typed, by title, celebrant,
+     * description, page address or the owner's name. A search is not limited to
+     * the feed's first page: it looks across everything discoverable.
+     *
+     * Open to guests (optional token): it is the app's front door, and only
+     * pages their owners made public are in it. Signed in, your own pages are
+     * left out.
      */
     public function discover(Request $request)
     {
-        $q = trim((string) $request->query('q', ''));
+        $q    = trim((string) $request->query('q', ''));
+        $user = $request->user();
 
         $discover = Celebration::where('is_public', true)
-            ->where('user_id', '!=', $request->user()->id)
+            ->when($user, fn ($query) => $query->where('user_id', '!=', $user->id))
             ->where('status', 'published')
             ->with('user')
             ->withCount(['gifts', 'wishes']);
