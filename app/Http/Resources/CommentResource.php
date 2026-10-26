@@ -24,6 +24,11 @@ class CommentResource extends JsonResource
                 : ($this->guest_name ?: 'Guest'),
             'author_photo' => Media::url($this->user?->profile_photo),
             'is_guest'     => $this->user_id === null,
+            // For "block this person" — absent for guests and anonymous posts,
+            // which have no account to block.
+            'author_id'    => $this->user_id,
+            // The author, or the celebrant whose page it is on.
+            'can_delete'   => $this->viewerCanDelete($request),
 
             'media_type' => $this->media_type ?: null,
             'media_url'  => Media::url($this->media_url),
@@ -42,6 +47,25 @@ class CommentResource extends JsonResource
             'created_at'      => $this->created_at?->toIso8601String(),
             'created_at_human' => $this->created_at?->diffForHumans(),
         ];
+    }
+
+    /**
+     * Callers listing a page's wall set the `celebration` relation on each
+     * post (it is the same page for all of them), so this asks nothing more.
+     */
+    private function viewerCanDelete($request): bool
+    {
+        $viewer = $request->user();
+
+        if (! $viewer) {
+            return false;
+        }
+
+        if ($this->user_id === $viewer->id) {
+            return true;
+        }
+
+        return $this->celebration?->user_id === $viewer->id;
     }
 
     /** The viewer's own reaction — a guest is known by device, as in react(). */

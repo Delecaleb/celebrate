@@ -593,6 +593,17 @@
                     </a>
                 @endif
 
+                @if ($me?->hasPermission('content.moderate'))
+                    @php $openReports = \App\Http\Controllers\Admin\AdminReportController::openCount(); @endphp
+                    <a href="{{ route('admin.reports') }}" class="nav-item {{ request()->routeIs('admin.reports*') ? 'active' : '' }}">
+                        <div class="nav-icon"><i class="mdi mdi-flag-outline"></i></div>
+                        <span>Reports</span>
+                        @if ($openReports > 0)
+                            <span class="badge badge-red" style="margin-left:auto">{{ $openReports }}</span>
+                        @endif
+                    </a>
+                @endif
+
                 @if ($me?->hasPermission('gifts.manage'))
                     <a href="{{ route('admin.gifts') }}" class="nav-item {{ request()->routeIs('admin.gifts*') ? 'active' : '' }}">
                         <div class="nav-icon"><i class="mdi mdi-gift-outline"></i></div>

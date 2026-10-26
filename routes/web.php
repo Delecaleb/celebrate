@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MainController;
+use App\Http\Controllers\AppLinksController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\DashboardController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Admin\AdminOutboxController;
 use App\Http\Controllers\Admin\AdminSettingsController;
 use App\Http\Controllers\Admin\AdminImpersonationController;
 use App\Http\Controllers\Admin\AdminPaymentController;
+use App\Http\Controllers\Admin\AdminReportController;
 use App\Http\Controllers\Admin\AdminStaffController;
 use App\Http\Controllers\Admin\AdminLoginController;
 use App\Http\Controllers\WalletFundingController;
@@ -44,6 +46,11 @@ Route::post('/webhooks/alatpay',  [WebhookController::class, 'alatpay'])->name('
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/robots.txt',  [SitemapController::class, 'robots'])->name('robots');
+
+// Phones ask these before opening a celebratemi.com link in the app instead of
+// the browser. Both must be plain JSON, served directly — no redirect.
+Route::get('/.well-known/assetlinks.json', [AppLinksController::class, 'android'])->name('app-links.android');
+Route::get('/.well-known/apple-app-site-association', [AppLinksController::class, 'apple'])->name('app-links.apple');
 
 Route::get('/',             [MainController::class, 'home'])->name('home');
 Route::get('/features',     [MainController::class, 'features'])->name('features');
@@ -268,6 +275,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::middleware('admin.can:withdrawals.process')->group(function () {
             Route::patch('/withdrawals/{withdrawal}/approve', [AdminController::class, 'approveWithdrawal'])->name('withdrawals.approve');
             Route::patch('/withdrawals/{withdrawal}/reject',  [AdminController::class, 'rejectWithdrawal'])->name('withdrawals.reject');
+        });
+
+        // Reported wishes, replies, pages and accounts
+        Route::middleware('admin.can:content.moderate')->group(function () {
+            Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
+            Route::post('/reports/{type}/{id}', [AdminReportController::class, 'act'])
+                ->whereIn('type', ['wish', 'reply', 'celebration', 'user'])
+                ->whereNumber('id')
+                ->name('reports.act');
         });
 
         // The gift catalogue

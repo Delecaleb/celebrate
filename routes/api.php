@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CelebrationGuestController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\ModerationController;
 use App\Http\Controllers\Api\GiftController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WishController;
@@ -80,6 +81,10 @@ Route::prefix('v1')->group(function () {
     // The app's front door — guests browse before they sign up.
     Route::get('dashboard/discover', [DashboardController::class, 'discover']);
 
+    // Anyone who can see something can report it. Throttled per IP so a
+    // report button cannot be leaned on to bury a post.
+    Route::post('reports', [ModerationController::class, 'report'])->middleware('throttle:10,1');
+
     // Replies hang off registry items, not wall posts — comment_replies.wish_id
     // is a foreign key to wishes(id).
     Route::get('wishes/{wish}/replies',  [WishController::class, 'replies']);
@@ -101,6 +106,14 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/avatar',   [AuthController::class, 'updateAvatar']);
         Route::put('auth/password',  [AuthController::class, 'updatePassword']);
         Route::post('auth/email/resend-verification', [AuthController::class, 'resendVerification']);
+
+        // Moderation: delete what you posted or what is on your page, and
+        // block people you no longer want to see or hear from.
+        Route::delete('comments/{comment}',    [CommentController::class, 'destroy']);
+        Route::delete('wall-replies/{reply}',  [CommentController::class, 'destroyReply']);
+        Route::get('blocks',            [ModerationController::class, 'blocks']);
+        Route::post('blocks',           [ModerationController::class, 'block']);
+        Route::delete('blocks/{user}',  [ModerationController::class, 'unblock']);
 
         // Push notifications — this phone's Expo token
         Route::post('devices',   [DeviceController::class, 'store']);

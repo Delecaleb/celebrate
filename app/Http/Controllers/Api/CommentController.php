@@ -8,6 +8,7 @@ use App\Models\Celebration;
 use App\Models\Comment;
 use App\Models\Reaction;
 use App\Models\WallReply;
+use App\Support\Moderation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -32,7 +33,12 @@ class CommentController extends Controller
         $celebration = Celebration::where('slug', $slug)->firstOrFail();
 
         return CommentResource::collection(
-            $celebration->comments()->with(['user', 'reactions'])->latest()->paginate(30)
+            $celebration->comments()
+                ->tap(fn ($q) => self::withoutBlocked($q, $request->user()))
+                ->with(['user', 'reactions'])
+                ->latest()
+                ->paginate(30)
+                ->through(fn ($c) => $c->setRelation('celebration', $celebration))
         );
     }
 
@@ -53,6 +59,10 @@ class CommentController extends Controller
 
         $user      = $request->user();
         $anonymous = $request->boolean('anonymous');
+
+        // Someone the celebrant has blocked cannot post on their page.
+        $ownerId = Celebration::whereKey($request->celebration_id)->value('user_id');
+        abort_if(Moderation::hasBlocked($ownerId, $user?->id), 403, 'You can’t post on this page.');
 
         // media_type is NOT NULL and text-only rows store '', so it starts empty
         // rather than null — a null here makes the insert fail outright.
@@ -154,9 +164,16 @@ class CommentController extends Controller
     }
 
     /** The thread under a wall post, oldest first so it reads as a conversation. */
-    public function replies(Comment $comment)
+    public function replies(Request $request, Comment $comment)
     {
-        $replies = $comment->wallReplies()->with('user')->oldest()->get()->map(fn ($r) => self::reply($r));
+        $comment->loadMissing('celebration');
+
+        $replies = $comment->wallReplies()
+            ->tap(fn ($q) => self::withoutBlocked($q, $request->user()))
+            ->with('user')
+            ->oldest()
+            ->get()
+            ->map(fn ($r) => self::reply($r, $request->user(), $comment));
 
         return response()->json(['data' => $replies]);
     }
@@ -170,6 +187,9 @@ class CommentController extends Controller
         ]);
 
         $user = $request->user();
+
+        $comment->loadMissing('celebration');
+        abort_if(Moderation::hasBlocked($comment->celebration?->user_id, $user?->id), 403, 'You can’t post on this page.');
 
         $reply = DB::transaction(function () use ($comment, $data, $user) {
             $reply = WallReply::create([
@@ -186,16 +206,77 @@ class CommentController extends Controller
             return $reply;
         });
 
-        return response()->json(self::reply($reply->load('user')), 201);
+        return response()->json(self::reply($reply->load('user'), $user, $comment), 201);
     }
 
-    private static function reply(WallReply $r): array
+    /**
+     * Delete a wall post. Whoever posted it can, and so can the celebrant — it
+     * is their page, and they decide what stays on it.
+     */
+    public function destroy(Request $request, Comment $comment)
+    {
+        $comment->loadMissing('celebration');
+        abort_unless(self::canDelete($request->user(), $comment->user_id, $comment), 403, 'You can only delete your own posts, or posts on your page.');
+
+        DB::transaction(function () use ($comment) {
+            $comment->delete();
+            Celebration::whereKey($comment->celebration_id)->where('comment_count', '>', 0)->decrement('comment_count');
+        });
+
+        return response()->json(['deleted' => true]);
+    }
+
+    /** Delete a reply — its author, the celebrant, or whoever posted the wish it answers. */
+    public function destroyReply(Request $request, WallReply $reply)
+    {
+        $comment = $reply->comment()->with('celebration')->first();
+        $viewer  = $request->user();
+
+        $allowed = self::canDelete($viewer, $reply->user_id, $comment)
+            || ($viewer && $comment && $comment->user_id === $viewer->id);
+
+        abort_unless($allowed, 403, 'You can only delete your own replies, or replies on your page.');
+
+        DB::transaction(function () use ($reply, $comment) {
+            $reply->delete();
+            if ($comment) {
+                Comment::whereKey($comment->id)->where('reply_count', '>', 0)->decrement('reply_count');
+            }
+        });
+
+        return response()->json(['deleted' => true]);
+    }
+
+    /** The author of a thing, or the owner of the page it is on. Guests cannot: nothing proves who they are. */
+    private static function canDelete(?\App\Models\User $viewer, ?int $authorId, ?Comment $onWish): bool
+    {
+        if (! $viewer) {
+            return false;
+        }
+
+        return $authorId === $viewer->id || $onWish?->celebration?->user_id === $viewer->id;
+    }
+
+    /** Leave out posts by people the viewer has blocked. Posts with no account behind them stay. */
+    private static function withoutBlocked($query, ?\App\Models\User $viewer): void
+    {
+        $blocked = Moderation::blockedBy($viewer);
+
+        if ($blocked) {
+            $query->where(fn ($q) => $q->whereNull('user_id')->orWhereNotIn('user_id', $blocked));
+        }
+    }
+
+    private static function reply(WallReply $r, ?\App\Models\User $viewer = null, ?Comment $onWish = null): array
     {
         return [
             'id'           => $r->id,
             'message'      => $r->message,
             'author'       => $r->user ? trim($r->user->first_name.' '.$r->user->last_name) : ($r->guest_name ?: 'Guest'),
+            'author_id'    => $r->user_id,
             'author_photo' => \App\Support\Media::url($r->user?->profile_photo),
+            'can_delete'   => self::canDelete($viewer, $r->user_id, $onWish)
+                || ($viewer && $onWish && $onWish->user_id === $viewer->id),
             'created_at'   => $r->created_at?->toIso8601String(),
         ];
     }

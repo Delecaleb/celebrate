@@ -97,6 +97,26 @@ return [
     | access token is optional until "enhanced push security" is switched on
     | for the project on expo.dev — after that, sends without it are refused.
     */
+    /*
+    | Opening celebration links in the app instead of the browser.
+    |
+    | Android checks /.well-known/assetlinks.json for the SHA-256 fingerprint
+    | of the key the app is signed with (EAS shows it: `eas credentials` →
+    | Android → the keystore). Several are allowed, comma-separated — add the
+    | Play Store's app signing key too if Play signs the app.
+    |
+    | iOS checks /.well-known/apple-app-site-association for TEAMID.bundle,
+    | where the Team ID is on developer.apple.com → Membership.
+    */
+    'app_links' => [
+        'android_package'      => env('APP_LINKS_ANDROID_PACKAGE', 'com.celebratemi.app'),
+        'android_fingerprints' => array_filter(array_map('trim', explode(',', (string) env('APP_LINKS_ANDROID_SHA256', '')))),
+        'ios_bundle_id'        => env('APP_LINKS_IOS_BUNDLE_ID', 'com.celebratemi.app'),
+        'apple_team_id'        => env('APP_LINKS_APPLE_TEAM_ID'),
+        // Only these open in the app; everything else stays on the website.
+        'paths'                => ['/celebration/*'],
+    ],
+
     'expo' => [
         'push_url'     => env('EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
         'access_token' => env('EXPO_ACCESS_TOKEN'),

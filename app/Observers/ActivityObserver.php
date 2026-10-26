@@ -9,6 +9,7 @@ use App\Models\PlatformNotification;
 use App\Models\Reaction;
 use App\Models\WallReply;
 use App\Models\WishContribution;
+use App\Support\Moderation;
 use App\Support\Push;
 use Illuminate\Support\Str;
 
@@ -27,7 +28,8 @@ class ActivityObserver
         $celebration = $comment->celebration;
         $owner       = $celebration?->user;
 
-        if (! $owner || $comment->user_id === $owner->id || $comment->is_approved === false) {
+        if (! $owner || $comment->user_id === $owner->id || $comment->is_approved === false
+            || Moderation::hasBlocked($owner->id, $comment->user_id)) {
             return;
         }
 
@@ -52,7 +54,7 @@ class ActivityObserver
         $comment = Comment::with('celebration')->find($reaction->reactionable_id);
         $author  = $comment?->user;
 
-        if (! $author || $author->id === $reaction->user_id) {
+        if (! $author || $author->id === $reaction->user_id || Moderation::hasBlocked($author->id, $reaction->user_id)) {
             return;
         }
 
@@ -125,7 +127,8 @@ class ActivityObserver
         $told = [];
 
         foreach ([[$comment->user, "{$who} replied to your wish"], [$celebration->user, "{$who} replied on your page"]] as [$person, $title]) {
-            if (! $person || $person->id === $reply->user_id || in_array($person->id, $told, true)) {
+            if (! $person || $person->id === $reply->user_id || in_array($person->id, $told, true)
+                || Moderation::hasBlocked($person->id, $reply->user_id)) {
                 continue;
             }
 

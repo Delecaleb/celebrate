@@ -491,7 +491,17 @@ public function storeComment(Request $request)
 
         $anonymous = $wantsAnonymity;
 
-        $user = Auth::user() ?? null;  
+        $user = Auth::user() ?? null;
+
+        // Someone the celebrant has blocked cannot post on their page — the
+        // same rule the app's API enforces.
+        $ownerId = \App\Models\Celebration::whereKey($request->celebration_id)->value('user_id');
+        if (\App\Support\Moderation::hasBlocked($ownerId, $user?->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can’t post on this page.',
+            ], 403);
+        }
         $fullname = $user ? $user->first_name . ' ' . $user->last_name : null;
         $guest_email = $user ? $user->email : null;
 

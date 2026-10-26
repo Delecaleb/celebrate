@@ -78,6 +78,11 @@ class Admin extends Authenticatable
             'group' => 'Content',
             'note'  => 'Add gifts, set their prices, and switch them between live and pending.',
         ],
+        'content.moderate' => [
+            'label' => 'Review reports',
+            'group' => 'Content',
+            'note'  => 'See what people have reported — wishes, replies, pages and accounts — and hide, restore, remove or dismiss it.',
+        ],
         'frames.manage' => [
             'label' => 'Manage frames',
             'group' => 'Content',

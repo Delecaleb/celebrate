@@ -16,6 +16,7 @@ use App\Models\PlatformAvailableGift;
 use App\Support\CelebrationVideos;
 use App\Services\PaymentSystem\CurrencyService;
 use App\Services\PaymentSystem\WalletService;
+use App\Support\Moderation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -123,8 +124,14 @@ class CelebrationController extends Controller
             'countdown'      => $countdown,
 
             // One key per tab on the page.
+            // Minus anyone the viewer has blocked. Each post is handed its page
+            // so the resource can tell who may delete it without asking again.
             'comments'       => CommentResource::collection(
-                $celebration->comments->sortByDesc('created_at')->values()
+                $celebration->comments
+                    ->reject(fn ($c) => $c->user_id && in_array($c->user_id, Moderation::blockedBy($viewer), true))
+                    ->each(fn ($c) => $c->setRelation('celebration', $celebration))
+                    ->sortByDesc('created_at')
+                    ->values()
             ),
             'wishes'         => WishResource::collection($wishes),
             'platform_gifts' => PlatformGiftResource::collection($platformGifts),
